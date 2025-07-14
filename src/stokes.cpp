@@ -14,7 +14,10 @@ template <int dim> void Stokes<dim>::load_grid() {
 }
 
 template <int dim> void Stokes<dim>::setup_system() {
+  A_preconditioner.reset();
   system_matrix.clear();
+  preconditioner_matrix.clear();
+
   dof_handler.distribute_dofs(fe);
   std::cout << "Number of degrees of freedom: " << dof_handler.n_dofs()
             << std::endl;
@@ -41,12 +44,9 @@ template <int dim> void Stokes<dim>::setup_system() {
       dof_handler, 40, Functions::ZeroFunction<dim>(dim + 1), constraints,
       fe.component_mask(velocities));
 
-  // const FEValuesExtractors::Vector pressure(0);
-  // VectorTools::interpolate_boundary_values(
-  //     dof_handler, 20, Functions::ZeroFunction<dim>(dim + 1), constraints,
-  //     fe.component_mask(pressure));
   constraints.close();
 
+  // Initialize the sparsity pattern and system matrix
   BlockDynamicSparsityPattern dsp(dofs_per_block, dofs_per_block);
   Table<2, DoFTools::Coupling> coupling(dim + 1, dim + 1);
   for (unsigned int c = 0; c < dim + 1; ++c)
@@ -55,12 +55,31 @@ template <int dim> void Stokes<dim>::setup_system() {
         coupling[c][d] = DoFTools::always;
       else
         coupling[c][d] = DoFTools::none;
-
   DoFTools::make_sparsity_pattern(dof_handler, coupling, dsp, constraints,
                                   false);
-
   sparsity_pattern.copy_from(dsp);
+
+  // Initialize sparsity pattern and preconditioner matrix
+  BlockDynamicSparsityPattern preconditioner_dsp(dofs_per_block,
+                                                 dofs_per_block);
+
+  Table<2, DoFTools::Coupling> preconditioner_coupling(dim + 1, dim + 1);
+  for (unsigned int c = 0; c < dim + 1; ++c)
+    for (unsigned int d = 0; d < dim + 1; ++d)
+      if (((c == dim) && (d == dim)))
+        preconditioner_coupling[c][d] = DoFTools::always;
+      else
+        preconditioner_coupling[c][d] = DoFTools::none;
+
+  DoFTools::make_sparsity_pattern(dof_handler, preconditioner_coupling,
+                                  preconditioner_dsp, constraints, false);
+  preconditioner_sparsity_pattern.copy_from(preconditioner_dsp);
+
+  // Initialize the system matrix and preconditioner matrix
   system_matrix.reinit(sparsity_pattern);
+  preconditioner_matrix.reinit(preconditioner_sparsity_pattern);
+
+  // Initialize the solution and right-hand side vectors
   solution.reinit(dofs_per_block);
   system_rhs.reinit(dofs_per_block);
 }
@@ -117,31 +136,76 @@ template <int dim> void Stokes<dim>::assemble_system() {
           local_matrix(i, j) +=
               (2 * viscosity * (symgrad_phi_u[i] * symgrad_phi_u[j]) -
                div_phi_u[i] * phi_p[j] - phi_p[i] * div_phi_u[j]) *
-              fe_values.JxW(q); // * dx
-          // local_rhs(i) += phi_u[i]            // phi_u_i(x_q)
-          //                 * rhs_values[q]     // * f(x_q)
-          //                 * fe_values.JxW(q); // * dx
+              fe_values.JxW(q);                                      // * dx
+          local_preconditioner_matrix(i, j) += (phi_p[i] * phi_p[j]) // (4)
+                                               * fe_values.JxW(q);   // * dx
         }
       }
     }
     for (unsigned int i = 0; i < dofs_per_cell; ++i)
-      for (unsigned int j = i + 1; j < dofs_per_cell; ++j)
+      for (unsigned int j = i + 1; j < dofs_per_cell; ++j) {
         local_matrix(i, j) = local_matrix(j, i);
+        local_preconditioner_matrix(i, j) = local_preconditioner_matrix(j, i);
+      }
 
     cell->get_dof_indices(local_dof_indices);
     constraints.distribute_local_to_global(
         local_matrix, local_rhs, local_dof_indices, system_matrix, system_rhs);
+    constraints.distribute_local_to_global(
+        local_preconditioner_matrix, local_dof_indices, preconditioner_matrix);
   }
   std::cout << "System and rhs assembled" << std::endl;
+  A_preconditioner =
+      std::make_shared<typename InnerPreconditioner<dim>::type>();
+  A_preconditioner->initialize(
+      system_matrix.block(0, 0),
+      typename InnerPreconditioner<dim>::type::AdditionalData());
 }
 
 template <int dim> void Stokes<dim>::solve() {
-  SolverControl solver_control(10000, 1e-3);
-  SolverCG<BlockVector<double>> cg(solver_control);
-  cg.solve(system_matrix, solution, system_rhs, PreconditionIdentity());
-  std::cout << "Solver converged in " << solver_control.last_step()
-            << " iterations." << std::endl;
-  constraints.distribute(solution);
+  const InverseMatrix<SparseMatrix<double>,
+                      typename InnerPreconditioner<dim>::type>
+      A_inverse(system_matrix.block(0, 0), *A_preconditioner);
+  Vector<double> tmp(solution.block(0).size());
+
+  {
+    Vector<double> schur_rhs(solution.block(1).size());
+    A_inverse.vmult(tmp, system_rhs.block(0));
+    system_matrix.block(1, 0).vmult(schur_rhs, tmp);
+    schur_rhs -= system_rhs.block(1);
+
+    SchurComplement<typename InnerPreconditioner<dim>::type> schur_complement(
+        system_matrix, A_inverse);
+
+    SolverControl solver_control(solution.block(1).size(),
+                                 1e-12 * schur_rhs.l2_norm());
+    SolverCG<Vector<double>> cg(solver_control);
+
+    SparseILU<double> preconditioner;
+    preconditioner.initialize(preconditioner_matrix.block(1, 1),
+                              SparseILU<double>::AdditionalData());
+
+    InverseMatrix<SparseMatrix<double>, SparseILU<double>> m_inverse(
+        preconditioner_matrix.block(1, 1), preconditioner);
+
+    cg.solve(schur_complement, solution.block(1), schur_rhs, m_inverse);
+
+    constraints.distribute(solution);
+
+    std::cout << "  " << solver_control.last_step()
+              << " outer CG Schur complement iterations for pressure"
+              << std::endl;
+  }
+
+  {
+    system_matrix.block(0, 1).vmult(tmp, solution.block(1));
+    tmp *= -1;
+    tmp += system_rhs.block(0);
+
+    A_inverse.vmult(solution.block(0), tmp);
+
+    constraints.distribute(solution);
+  }
 }
 
 template <int dim> void Stokes<dim>::output_results() {
@@ -184,9 +248,9 @@ template <int dim> void Stokes<dim>::run() {
   for (unsigned int cycle = 0; cycle < 5; ++cycle) {
     if (cycle > 0)
       refine_grid();
-  setup_system();
-  assemble_system();
-  solve();
+    setup_system();
+    assemble_system();
+    solve();
   }
   output_results();
 }
