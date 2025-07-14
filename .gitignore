@@ -39,3 +39,9 @@
 
 # debug information files
 *.dwo
+
+# mesh files 
+*.msh
+
+# build directories
+build/
