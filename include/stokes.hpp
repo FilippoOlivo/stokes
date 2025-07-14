@@ -27,9 +27,23 @@
 #include <deal.II/numerics/error_estimator.h>
 #include <deal.II/numerics/vector_tools.h>
 
+#include <deal.II/lac/sparse_direct.h>
+#include <deal.II/lac/sparse_ilu.h>
+
 #include "../include/boundary.hpp"
+#include "../include/schur_complement.hpp"
 
 using namespace dealii;
+
+template <int dim> struct InnerPreconditioner;
+
+template <> struct InnerPreconditioner<2> {
+  using type = SparseDirectUMFPACK;
+};
+
+template <> struct InnerPreconditioner<3> {
+  using type = SparseILU<double>;
+};
 
 template <int dim> class Stokes {
 
@@ -46,10 +60,15 @@ private:
   AffineConstraints<double> constraints;
 
   BlockSparsityPattern sparsity_pattern;
+  BlockSparsityPattern preconditioner_sparsity_pattern;
 
   BlockVector<double> solution;
   BlockVector<double> system_rhs;
+
   BlockSparseMatrix<double> system_matrix;
+  BlockSparseMatrix<double> preconditioner_matrix;
+
+  std::shared_ptr<typename InnerPreconditioner<dim>::type> A_preconditioner;
 
   double viscosity = 0.1; // Oil viscosity
 
