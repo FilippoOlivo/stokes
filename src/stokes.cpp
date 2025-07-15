@@ -4,7 +4,8 @@ template <int dim>
 Stokes<dim>::Stokes(unsigned int degree)
 
     : degree(degree), fe(FE_Q<2>(degree + 1) ^ 2, FE_Q<2>(degree)),
-      dof_handler(triangulation){};
+      dof_handler(triangulation),
+      computing_timer(std::cout, TimerOutput::never, TimerOutput::wall_times){};
 
 template <int dim> void Stokes<dim>::load_grid() {
   GridIn<2> grid_in;
@@ -13,11 +14,8 @@ template <int dim> void Stokes<dim>::load_grid() {
   grid_in.read_msh(input_file);
 }
 
-template <int dim> void Stokes<dim>::setup_system() {
-  A_preconditioner.reset();
-  system_matrix.clear();
-  preconditioner_matrix.clear();
-
+template <int dim> void Stokes<dim>::setup_dofhandler() {
+  TimerOutput::Scope timer(computing_timer, "setup_dofhandler");
   dof_handler.distribute_dofs(fe);
   std::cout << "Number of degrees of freedom: " << dof_handler.n_dofs()
             << std::endl;
@@ -27,8 +25,13 @@ template <int dim> void Stokes<dim>::setup_system() {
   block_component[dim] = 1;
   DoFRenumbering::component_wise(dof_handler, block_component);
 
-  const std::vector<types::global_dof_index> dofs_per_block =
+  dofs_per_block =
       DoFTools::count_dofs_per_fe_block(dof_handler, block_component);
+}
+
+template <int dim> void Stokes<dim>::setup_constraints() {
+  TimerOutput::Scope timer(computing_timer, "setup_constraints");
+  // Initialize the constraints
   constraints.clear();
   constraints.reinit();
 
@@ -43,14 +46,18 @@ template <int dim> void Stokes<dim>::setup_system() {
   VectorTools::interpolate_boundary_values(
       dof_handler, 40, Functions::ZeroFunction<dim>(dim + 1), constraints,
       fe.component_mask(velocities));
-  
-  const FEValuesExtractors::Vector pressure(dim-1);
+
+  const FEValuesExtractors::Vector pressure(dim - 1);
   VectorTools::interpolate_boundary_values(
       dof_handler, 20, Functions::ZeroFunction<dim>(dim + 1), constraints,
       fe.component_mask(pressure));
 
   constraints.close();
+}
 
+template <int dim> void Stokes<dim>::setup_system_matrix() {
+  TimerOutput::Scope timer(computing_timer, "setup_system_matrix");
+  system_matrix.clear();
   // Initialize the sparsity pattern and system matrix
   BlockDynamicSparsityPattern dsp(dofs_per_block, dofs_per_block);
   Table<2, DoFTools::Coupling> coupling(dim + 1, dim + 1);
@@ -63,6 +70,13 @@ template <int dim> void Stokes<dim>::setup_system() {
   DoFTools::make_sparsity_pattern(dof_handler, coupling, dsp, constraints,
                                   false);
   sparsity_pattern.copy_from(dsp);
+  system_matrix.reinit(sparsity_pattern);
+}
+
+template <int dim> void Stokes<dim>::setup_preconditioner_matrix() {
+  TimerOutput::Scope timer(computing_timer, "setup_preconditioner_matrix");
+  A_preconditioner.reset();
+  preconditioner_matrix.clear();
 
   // Initialize sparsity pattern and preconditioner matrix
   BlockDynamicSparsityPattern preconditioner_dsp(dofs_per_block,
@@ -79,18 +93,23 @@ template <int dim> void Stokes<dim>::setup_system() {
   DoFTools::make_sparsity_pattern(dof_handler, preconditioner_coupling,
                                   preconditioner_dsp, constraints, false);
   preconditioner_sparsity_pattern.copy_from(preconditioner_dsp);
-
-  // Initialize the system matrix and preconditioner matrix
-  system_matrix.reinit(sparsity_pattern);
   preconditioner_matrix.reinit(preconditioner_sparsity_pattern);
+}
 
-  // Initialize the solution and right-hand side vectors
-  solution.reinit(dofs_per_block);
-  system_rhs.reinit(dofs_per_block);
+template <int dim> void Stokes<dim>::setup_system() {
+  setup_dofhandler();
+  setup_constraints();
+  setup_system_matrix();
+  setup_preconditioner_matrix();
+
+  TimerOutput::Scope timer(computing_timer, "setup_solution_vectors");
+  { solution.reinit(dofs_per_block); }
+  TimerOutput::Scope timer_rhs(computing_timer, "setup_system_rhs");
+  { system_rhs.reinit(dofs_per_block); }
 }
 
 template <int dim> void Stokes<dim>::assemble_system() {
-  // Initialize the system matrix and right-hand side vector
+  TimerOutput::Scope timer(computing_timer, "assemble_system");
   system_matrix = 0;
   system_rhs = 0;
 
@@ -173,6 +192,7 @@ template <int dim> void Stokes<dim>::solve() {
       A_inverse(system_matrix.block(0, 0), *A_preconditioner);
   Vector<double> tmp(solution.block(0).size());
 
+  TimerOutput::Scope timer(computing_timer, "solve_pressure");
   {
     Vector<double> schur_rhs(solution.block(1).size());
     A_inverse.vmult(tmp, system_rhs.block(0));
@@ -201,7 +221,7 @@ template <int dim> void Stokes<dim>::solve() {
               << " outer CG Schur complement iterations for pressure"
               << std::endl;
   }
-
+  TimerOutput::Scope t2(computing_timer, "solve_velocity");
   {
     system_matrix.block(0, 1).vmult(tmp, solution.block(1));
     tmp *= -1;
@@ -213,7 +233,7 @@ template <int dim> void Stokes<dim>::solve() {
   }
 }
 
-template <int dim> void Stokes<dim>::output_results() {
+template <int dim> void Stokes<dim>::output_results(unsingned int cycle) {
   std::vector<std::string> solution_names(2, "velocity");
   solution_names.emplace_back("pressure");
 
@@ -256,12 +276,15 @@ template <int dim> void Stokes<dim>::run() {
     setup_system();
     assemble_system();
     solve();
+    computing_timer.print_summary();
+    computing_timer.reset();
+    std::cout << std::endl;
   }
   output_results();
 }
 
 int main(int argc, char *argv[]) {
-  Stokes<2> stokes(2);
+  Stokes<2> stokes(1);
   stokes.run();
   return 0;
 }

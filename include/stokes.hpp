@@ -1,5 +1,6 @@
 #include <deal.II/base/config.h>
 #include <deal.II/base/function.h>
+#include <deal.II/base/timer.h>
 
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_in.h>
@@ -57,6 +58,9 @@ private:
   Triangulation<dim> triangulation;
   const FESystem<dim> fe;
   DoFHandler<dim> dof_handler;
+  TimerOutput computing_timer;
+
+  std::vector<types::global_dof_index> dofs_per_block;
   AffineConstraints<double> constraints;
 
   BlockSparsityPattern sparsity_pattern;
@@ -74,6 +78,10 @@ private:
 
   void load_grid();
 
+  void setup_dofhandler();
+  void setup_constraints();
+  void setup_system_matrix();
+  void setup_preconditioner_matrix();
   void setup_system();
 
   void assemble_system();
