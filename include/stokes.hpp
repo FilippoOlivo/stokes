@@ -86,6 +86,6 @@ private:
 
   void assemble_system();
   void solve();
-  void output_results();
+  void output_results(unsigned int cycle);
   void refine_grid();
 };

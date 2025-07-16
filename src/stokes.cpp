@@ -233,7 +233,7 @@ template <int dim> void Stokes<dim>::solve() {
   }
 }
 
-template <int dim> void Stokes<dim>::output_results(unsingned int cycle) {
+template <int dim> void Stokes<dim>::output_results(unsigned int cycle) {
   std::vector<std::string> solution_names(2, "velocity");
   solution_names.emplace_back("pressure");
 
@@ -280,11 +280,5 @@ template <int dim> void Stokes<dim>::run() {
     computing_timer.reset();
     std::cout << std::endl;
   }
-  output_results();
-}
-
-int main(int argc, char *argv[]) {
-  Stokes<2> stokes(1);
-  stokes.run();
-  return 0;
+  output_results(0);
 }
