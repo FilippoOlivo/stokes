@@ -11,7 +11,7 @@ find_package(deal.II 9.6.2 REQUIRED HINTS ${DEAL_II_DIR})
 
 set(TARGET_SRC
     src/main.cpp
-    src/unsteady_stokes.cpp
+    src/stokes.cpp
     src/boundary.cpp
 )
 add_compile_options(-fvisibility=hidden)

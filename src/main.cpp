@@ -1,7 +1,9 @@
-#include "../include/unsteady_stokes.hpp"
+#include "../include/stokes.hpp"
 
-int main(int argc, char *argv[]) {
-  Stokes<2> stokes(1);
-  stokes.run();
-  return 0;
+int
+main()
+{
+    Stokes<2> stokes(1);
+    stokes.run();
+    return 0;
 }
