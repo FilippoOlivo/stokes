@@ -1,9 +1,9 @@
-#include "../include/stokes.hpp"
+#include "../include/BP_stokes.hpp"
+
 
 int
 main()
 {
-    Stokes<2> stokes(1);
+    StabilizedStokes<2> stokes(1);
     stokes.run();
-    return 0;
 }

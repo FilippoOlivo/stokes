@@ -50,4 +50,7 @@ SchurComplement<PreconditionerType>::vmult(Vector<double>       &dst,
     system_matrix->block(0, 1).vmult(tmp1, src);
     A_inverse->vmult(tmp2, tmp1);
     system_matrix->block(1, 0).vmult(dst, tmp2);
+    Vector<double> tmp_mass(src.size());
+    system_matrix->block(1, 1).vmult(tmp_mass, src);
+    dst += tmp_mass;
 }

@@ -5,7 +5,7 @@ InletBoundary::value(const Point<2> &p, const unsigned int component) const
 {
     if (component == 0)
         if (p[0] <= 1e-8)
-            return -1 * (p[1] * p[1] - p[1]);
+            return 4 * p[1] * (1 - p[1]);
     return 0;
 }
 
