@@ -1,9 +1,9 @@
-#include "../include/BP_stokes.hpp"
+#include "../include/stable_stokes.hpp"
 
 
 int
 main()
 {
-    StabilizedStokes<2> stokes(1);
+    StableStokes<2> stokes(1, "../mesh_0.msh");
     stokes.run();
 }

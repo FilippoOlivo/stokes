@@ -1,8 +1,8 @@
-#include "../include/BP_stokes.hpp"
+#include "../include/stable_stokes.hpp"
 
 template <int dim>
 void
-StabilizedStokes<dim>::setup_system_matrix()
+StableStokes<dim>::setup_system_matrix()
 {
     TimerOutput::Scope timer(this->computing_timer, "setup_system_matrix");
     this->system_matrix.clear();
@@ -11,9 +11,10 @@ StabilizedStokes<dim>::setup_system_matrix()
     Table<2, DoFTools::Coupling> coupling(dim + 1, dim + 1);
     for (unsigned int c = 0; c < dim + 1; ++c)
         for (unsigned int d = 0; d < dim + 1; ++d)
-            coupling[c][d] = DoFTools::always;
-
-
+            if (!((c == dim) && (d == dim)))
+                coupling[c][d] = DoFTools::always;
+            else
+                coupling[c][d] = DoFTools::none;
     DoFTools::make_sparsity_pattern(
         this->dof_handler, coupling, dsp, this->constraints, false);
     this->sparsity_pattern.copy_from(dsp);
@@ -22,15 +23,13 @@ StabilizedStokes<dim>::setup_system_matrix()
 
 template <int dim>
 void
-StabilizedStokes<dim>::build_local_matrix(
+StableStokes<dim>::build_local_matrix(
     std::vector<SymmetricTensor<2, dim>> &symgrad_phi_u,
     std::vector<double>                  &div_phi_u,
-    std::vector<Tensor<1, dim>>          &grad_phi_p,
     std::vector<double>                  &phi_p,
     double                                JxW,
     const unsigned int                    dofs_per_cell,
-    FullMatrix<double>                   &local_matrix,
-    double                                h_k_squared)
+    FullMatrix<double>                   &local_matrix)
 {
     for (unsigned int i = 0; i < dofs_per_cell; ++i)
         for (unsigned int j = 0; j <= i; ++j)
@@ -38,8 +37,7 @@ StabilizedStokes<dim>::build_local_matrix(
                 local_matrix(i, j) +=
                     (2 * this->viscosity *
                          (symgrad_phi_u[i] * symgrad_phi_u[j]) -
-                     div_phi_u[i] * phi_p[j] - phi_p[i] * div_phi_u[j] +
-                     grad_phi_p[i] * grad_phi_p[j] * h_k_squared * delta) *
+                     div_phi_u[i] * phi_p[j] - phi_p[i] * div_phi_u[j]) *
                     JxW;
                 local_matrix(j, i) = local_matrix(i, j); // Ensure symmetry
             }
@@ -47,7 +45,7 @@ StabilizedStokes<dim>::build_local_matrix(
 
 template <int dim>
 void
-StabilizedStokes<dim>::assemble_system()
+StableStokes<dim>::assemble_system()
 {
     TimerOutput::Scope timer(this->computing_timer, "assemble_system");
     this->system_matrix = 0;
@@ -77,7 +75,6 @@ StabilizedStokes<dim>::assemble_system()
     // Store symmetric gradient, divergence, and values of velocity/pressure
     std::vector<SymmetricTensor<2, dim>> symgrad_phi_u(dofs_per_cell);
     std::vector<double>                  div_phi_u(dofs_per_cell);
-    std::vector<Tensor<1, dim>>          grad_phi_p(dofs_per_cell);
     std::vector<double>                  phi_p(dofs_per_cell);
 
 
@@ -88,8 +85,6 @@ StabilizedStokes<dim>::assemble_system()
             local_matrix                = 0;
             local_preconditioner_matrix = 0;
             local_rhs                   = 0;
-            double h_k                  = cell->diameter();
-            double h_k_squared          = h_k * h_k;
             for (unsigned int q = 0; q < n_q_points; ++q)
                 {
                     // Get symmetric gradient, divergence, and values of
@@ -100,18 +95,15 @@ StabilizedStokes<dim>::assemble_system()
                                 fe_values[velocities].symmetric_gradient(k, q);
                             div_phi_u[k] =
                                 fe_values[velocities].divergence(k, q);
-                            grad_phi_p[k] = fe_values[pressure].gradient(k, q);
-                            phi_p[k]      = fe_values[pressure].value(k, q);
+                            phi_p[k] = fe_values[pressure].value(k, q);
                         }
 
                     build_local_matrix(symgrad_phi_u,
                                        div_phi_u,
-                                       grad_phi_p,
                                        phi_p,
                                        fe_values.JxW(q),
                                        dofs_per_cell,
-                                       local_matrix,
-                                       h_k_squared);
+                                       local_matrix);
                     this->build_local_preconditioner_matrix(
                         phi_p,
                         fe_values.JxW(q),
@@ -136,4 +128,4 @@ StabilizedStokes<dim>::assemble_system()
                                       SparseDirectUMFPACK::AdditionalData());
 }
 
-template class StabilizedStokes<2>;
+template class StableStokes<2>;

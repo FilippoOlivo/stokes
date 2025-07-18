@@ -42,6 +42,7 @@
 
 # mesh files 
 *.msh
+*.geo
 
 # build directories
 build/

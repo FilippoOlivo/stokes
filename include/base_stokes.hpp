@@ -42,18 +42,19 @@ class BaseStokes
   public:
     BaseStokes(unsigned int degree_p,
                unsigned int degree_u,
+               std::string  mesh_file,
                std::string  output_base_name);
     void
     run();
 
   protected:
-    std::string         mesh_file = "../mesh.msh";
     unsigned int        degree_p;
     unsigned int        degree_u;
     Triangulation<dim>  triangulation;
     DoFHandler<dim>     dof_handler;
     const FESystem<dim> fe;
     TimerOutput         computing_timer;
+    std::string         mesh_file;
     std::string         output_base_name;
 
 
@@ -106,6 +107,7 @@ class BaseStokes
 template <int dim>
 BaseStokes<dim>::BaseStokes(unsigned int degree_p,
                             unsigned int degree_u,
+                            std::string  mesh_file,
                             std::string  output_base_name)
 
     : degree_p(degree_p)
@@ -113,6 +115,7 @@ BaseStokes<dim>::BaseStokes(unsigned int degree_p,
     , dof_handler(triangulation)
     , fe(FE_Q<dim>(degree_u) ^ dim, FE_Q<dim>(degree_p))
     , computing_timer(std::cout, TimerOutput::never, TimerOutput::wall_times)
+    , mesh_file(mesh_file)
     , output_base_name(output_base_name){};
 
 template <int dim>
