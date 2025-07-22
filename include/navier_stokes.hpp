@@ -130,9 +130,7 @@ class NavierStokes : public CommonCFD<dim>
     solve(const bool initial_step);
 
     void
-    newton_iteration(const double       tolerance,
-                     const unsigned int max_n_line_searches,
-                     const bool         is_initial_step);
+    newton_iteration(const double tolerance, const unsigned int max_iterations);
     void
     assemble_rhs(const bool initial_step);
 

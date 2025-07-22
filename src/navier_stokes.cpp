@@ -323,17 +323,15 @@ NavierStokes<dim>::assemble_system(const bool initial_step)
 template <int dim>
 void
 NavierStokes<dim>::newton_iteration(const double       tolerance,
-                                    const unsigned int max_n_line_searches,
-                                    const bool         is_initial_step)
+                                    const unsigned int max_iterations)
 {
-    bool first_step = is_initial_step;
-
     unsigned int line_search_n = 0;
     double       last_res      = 1.0;
     double       current_res   = 1.0;
+    bool         first_step    = true;
 
     while ((first_step || (current_res > tolerance)) &&
-           line_search_n < max_n_line_searches)
+           line_search_n < max_iterations)
         {
             if (first_step)
                 {
@@ -393,7 +391,7 @@ NavierStokes<dim>::run()
             std::cout << "Cycle " << cycle << ": "
                       << this->triangulation.n_active_cells() << " active cells"
                       << std::endl;
-            newton_iteration(1e-12, 10, true);
+            newton_iteration(1e-12, 1000);
             this->output_results(cycle);
         }
 }

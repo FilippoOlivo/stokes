@@ -1,4 +1,4 @@
-#include "../include/stable_stokes.hpp"
+#include "../include/navier_stokes.hpp"
 
 
 int
@@ -12,6 +12,6 @@ main(int argc, char *argv[])
     else
         mesh_file = "../mesh_0.msh";
 
-    StableStokes<2> stokes(params);
+    NavierStokes<2> stokes(params);
     stokes.run();
 }
