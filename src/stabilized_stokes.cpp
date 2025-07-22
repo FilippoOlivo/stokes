@@ -36,7 +36,7 @@ StabilizedStokes<dim>::build_local_matrix(
         for (unsigned int j = 0; j <= i; ++j)
             {
                 local_matrix(i, j) +=
-                    (2 * this->viscosity *
+                    (2 * this->params.viscosity *
                          (symgrad_phi_u[i] * symgrad_phi_u[j]) -
                      div_phi_u[i] * phi_p[j] - phi_p[i] * div_phi_u[j] +
                      grad_phi_p[i] * grad_phi_p[j] * h_k_squared * delta) *

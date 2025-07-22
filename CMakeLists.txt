@@ -13,6 +13,7 @@ set(TARGET_SRC
     src/main.cpp
     src/stable_stokes.cpp
     src/stabilized_stokes.cpp
+    src/navier_stokes.cpp
     src/boundary.cpp
 )
 add_compile_options(-fvisibility=hidden)

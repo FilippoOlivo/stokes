@@ -2,8 +2,16 @@
 
 
 int
-main()
+main(int argc, char *argv[])
 {
-    StableStokes<2> stokes(1, "../mesh_0.msh");
+    Parameters params;
+    ParameterAcceptor::initialize("../parameters.prm");
+    std::string mesh_file;
+    if (argc == 2)
+        mesh_file = argv[1];
+    else
+        mesh_file = "../mesh_0.msh";
+
+    StableStokes<2> stokes(params);
     stokes.run();
 }

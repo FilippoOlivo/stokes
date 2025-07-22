@@ -4,8 +4,8 @@ template <int dim>
 class StabilizedStokes : public BaseStokes<dim>
 {
   public:
-    StabilizedStokes(unsigned int degree, std::string mesh_file)
-        : BaseStokes<dim>(degree, degree, mesh_file, "stabilized_stokes-")
+    StabilizedStokes(const Parameters &params)
+        : BaseStokes<dim>(params, "stabilized_stokes-")
     {}
 
   private:
