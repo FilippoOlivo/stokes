@@ -2,63 +2,77 @@
 
 using namespace dealii;
 
-
 template <class PreconditionerMp>
 class BlockSchurPreconditioner : public Subscriptor
 {
   public:
-    BlockSchurPreconditioner(double                           gamma,
-                             double                           viscosity,
-                             const BlockSparseMatrix<double> &S,
-                             const SparseMatrix<double>      &P,
-                             const PreconditionerMp          &Mppreconditioner);
+    BlockSchurPreconditioner(
+        double                                     gamma,
+        double                                     viscosity,
+        const TrilinosWrappers::BlockSparseMatrix &S,
+        const TrilinosWrappers::SparseMatrix      &P,
+        const PreconditionerMp                    &Mppreconditioner,
+        const TrilinosWrappers::PreconditionAMG   &A_inverse_ppreconditioner,
+        const MPI_Comm                            &mpi_communicator,
+        const std::vector<IndexSet>               &owned_partitioning);
 
     void
-    vmult(BlockVector<double> &dst, const BlockVector<double> &src) const;
+    vmult(TrilinosWrappers::MPI::BlockVector       &dst,
+          const TrilinosWrappers::MPI::BlockVector &src) const;
 
   private:
-    const double                     gamma;
-    const double                     viscosity;
-    const BlockSparseMatrix<double> &stokes_matrix;
-    const SparseMatrix<double>      &pressure_mass_matrix;
-    const PreconditionerMp          &mp_preconditioner;
-    SparseDirectUMFPACK              A_inverse;
-};
+    const double                               gamma;
+    const double                               viscosity;
+    const TrilinosWrappers::BlockSparseMatrix &stokes_matrix;
+    const TrilinosWrappers::SparseMatrix      &pressure_mass_matrix;
+    const PreconditionerMp                    &mp_preconditioner;
+    const MPI_Comm                            &mpi_communicator;
+    const std::vector<IndexSet>               &owned_partitioning;
 
+    InverseMatrix<TrilinosWrappers::SparseMatrix,
+                  TrilinosWrappers::PreconditionAMG>
+        A_inverse;
+};
 
 template <class PreconditionerMp>
 BlockSchurPreconditioner<PreconditionerMp>::BlockSchurPreconditioner(
-    double                           gamma,
-    double                           viscosity,
-    const BlockSparseMatrix<double> &S,
-    const SparseMatrix<double>      &P,
-    const PreconditionerMp          &Mppreconditioner)
+    double                                     gamma,
+    double                                     viscosity,
+    const TrilinosWrappers::BlockSparseMatrix &S,
+    const TrilinosWrappers::SparseMatrix      &P,
+    const PreconditionerMp                    &Mppreconditioner,
+    const TrilinosWrappers::PreconditionAMG   &A_inverse_ppreconditioner,
+    const MPI_Comm                            &mpi_communicator,
+    const std::vector<IndexSet>               &owned_partitioning)
     : gamma(gamma)
     , viscosity(viscosity)
     , stokes_matrix(S)
     , pressure_mass_matrix(P)
     , mp_preconditioner(Mppreconditioner)
-{
-    A_inverse.initialize(stokes_matrix.block(0, 0));
-}
+    , mpi_communicator(mpi_communicator)
+    , owned_partitioning(owned_partitioning)
+    , A_inverse(stokes_matrix.block(0, 0), A_inverse_ppreconditioner)
+{}
 
 template <class PreconditionerMp>
 void
 BlockSchurPreconditioner<PreconditionerMp>::vmult(
-    BlockVector<double>       &dst,
-    const BlockVector<double> &src) const
+    TrilinosWrappers::MPI::BlockVector       &dst,
+    const TrilinosWrappers::MPI::BlockVector &src) const
 {
-    Vector<double> utmp(src.block(0));
+    // Temporary vector for velocity component
+    TrilinosWrappers::MPI::Vector utmp(owned_partitioning[0], mpi_communicator);
 
     {
         SolverControl solver_control(1000, 1e-6 * src.block(1).l2_norm());
-        SolverCG<Vector<double>> cg(solver_control);
+        SolverCG<TrilinosWrappers::MPI::Vector> cg(solver_control);
 
         dst.block(1) = 0.0;
         cg.solve(pressure_mass_matrix,
                  dst.block(1),
                  src.block(1),
                  mp_preconditioner);
+
         dst.block(1) *= -(viscosity + gamma);
     }
 
@@ -87,12 +101,12 @@ class NavierStokes : public CommonCFD<dim>
     BlockSparsityPattern sparsity_pattern;
     SparsityPattern      pressure_sparsity_pattern;
 
-    BlockVector<double> updated_solution;
-    BlockVector<double> newton_update;
+    TrilinosWrappers::MPI::BlockVector updated_solution;
+    TrilinosWrappers::MPI::BlockVector newton_update;
 
-    BlockSparseMatrix<double> system_matrix;
-    SparseMatrix<double>      pressure_mass_matrix;
-    double                    gamma = 1.0;
+    TrilinosWrappers::BlockSparseMatrix system_matrix;
+    TrilinosWrappers::SparseMatrix      pressure_mass_matrix;
+    double                              gamma = 1.0;
 
     void
     setup_constraints();

@@ -4,7 +4,8 @@
 int
 main(int argc, char *argv[])
 {
-    Parameters params;
+    Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
+    Parameters                       params;
     ParameterAcceptor::initialize("../parameters.prm");
     std::string mesh_file;
     if (argc == 2)

@@ -1,7 +1,8 @@
 #include <deal.II/base/smartpointer.h>
 
 #include <deal.II/lac/solver_cg.h>
-#include <deal.II/lac/vector.h>
+#include <deal.II/lac/solver_gmres.h>
+#include <deal.II/lac/trilinos_vector.h>
 
 using namespace dealii;
 
@@ -13,7 +14,8 @@ class InverseMatrix : public Subscriptor
                   const PreconditionerType &preconditioner);
 
     void
-    vmult(Vector<double> &dst, const Vector<double> &src) const;
+    vmult(TrilinosWrappers::MPI::Vector       &dst,
+          const TrilinosWrappers::MPI::Vector &src) const;
 
   private:
     const SmartPointer<const MatrixType>         matrix;
@@ -31,11 +33,11 @@ InverseMatrix<MatrixType, PreconditionerType>::InverseMatrix(
 template <class MatrixType, class PreconditionerType>
 void
 InverseMatrix<MatrixType, PreconditionerType>::vmult(
-    Vector<double>       &dst,
-    const Vector<double> &src) const
+    TrilinosWrappers::MPI::Vector       &dst,
+    const TrilinosWrappers::MPI::Vector &src) const
 {
-    SolverControl            solver_control(src.size(), 1e-6 * src.l2_norm());
-    SolverCG<Vector<double>> cg(solver_control);
+    SolverControl solver_control(src.size(), 1e-6 * src.l2_norm());
+    SolverGMRES<TrilinosWrappers::MPI::Vector> cg(solver_control);
 
     dst = 0;
 

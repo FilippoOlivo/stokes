@@ -10,10 +10,10 @@ template <int dim>
 void
 NavierStokes<dim>::setup_constraints()
 {
-    TimerOutput::Scope timer(this->computing_timer, "setup_constraints");
     // Initialize the constraints
     this->constraints.clear();
-    this->constraints.reinit();
+    this->constraints.reinit(this->locally_owned_dofs,
+                             this->locally_relevant_dofs);
 
     const FEValuesExtractors::Vector velocities(0);
     DoFTools::make_hanging_node_constraints(this->dof_handler,
@@ -47,7 +47,8 @@ NavierStokes<dim>::setup_constraints()
     this->constraints.close();
 
     zero_constraints.clear();
-    zero_constraints.reinit();
+    zero_constraints.reinit(this->locally_owned_dofs,
+                            this->locally_relevant_dofs);
     DoFTools::make_hanging_node_constraints(this->dof_handler,
                                             zero_constraints);
     VectorTools::interpolate_boundary_values(
@@ -83,30 +84,55 @@ template <int dim>
 void
 NavierStokes<dim>::setup_system_matrix()
 {
-    TimerOutput::Scope timer(this->computing_timer, "setup_system_matrix");
     pressure_mass_matrix.clear();
     system_matrix.clear();
     // Initialize the sparsity pattern and system matrix
-    BlockDynamicSparsityPattern dsp(this->dofs_per_block, this->dofs_per_block);
+    BlockDynamicSparsityPattern dsp(this->relevant_partitioning);
     DoFTools::make_sparsity_pattern(this->dof_handler,
                                     dsp,
                                     this->constraints,
                                     false);
-    sparsity_pattern.copy_from(dsp);
-    system_matrix.reinit(sparsity_pattern);
+    SparsityTools::distribute_sparsity_pattern(dsp,
+                                               this->locally_owned_dofs,
+                                               this->mpi_communicator,
+                                               this->locally_relevant_dofs);
+    this->sparsity_pattern.copy_from(dsp);
+    this->system_matrix.reinit(this->owned_partitioning,
+                               this->sparsity_pattern,
+                               this->mpi_communicator);
 }
 
 template <int dim>
 void
 NavierStokes<dim>::setup_system()
 {
-    this->setup_dofhandler();
-    setup_constraints();
-    setup_system_matrix();
+    TimerOutput::Scope timer_dofs(this->computing_timer, "setup_system");
+    {
+        this->setup_dofhandler();
+    }
+    TimerOutput::Scope timer_constraints(this->computing_timer,
+                                         "setup_dofhandler");
+    {
+        setup_constraints();
+    }
+    TimerOutput::Scope timer_matrix(this->computing_timer,
+                                    "setup_system_matrix");
+    {
+        setup_system_matrix();
+    }
 
-    this->solution.reinit(this->dofs_per_block);
-    newton_update.reinit(this->dofs_per_block);
-    this->system_rhs.reinit(this->dofs_per_block);
+    TimerOutput::Scope timer_vectors(this->computing_timer, "setup_soltion");
+    {
+        this->relevant_solution.reinit(this->owned_partitioning,
+                                       this->relevant_partitioning,
+                                       this->mpi_communicator);
+        newton_update.reinit(this->owned_partitioning, this->mpi_communicator);
+    }
+    TimerOutput::Scope timer_rhs(this->computing_timer, "setup_system_rhs");
+    {
+        this->system_rhs.reinit(this->owned_partitioning,
+                                this->mpi_communicator);
+    }
 }
 
 template <int dim>
@@ -164,7 +190,6 @@ template <int dim>
 void
 NavierStokes<dim>::assemble(const bool initial_step, const bool assemble_matrix)
 {
-    TimerOutput::Scope timer(this->computing_timer, "assemble_system");
     if (assemble_matrix)
         system_matrix = 0;
     this->system_rhs = 0;
@@ -201,6 +226,8 @@ NavierStokes<dim>::assemble(const bool initial_step, const bool assemble_matrix)
 
     for (const auto &cell : this->dof_handler.active_cell_iterators())
         {
+            if (cell->is_locally_owned() == false)
+                continue; // Skip artificial cells
             fe_values.reinit(cell);
 
             local_matrix = 0;
@@ -273,34 +300,44 @@ NavierStokes<dim>::assemble(const bool initial_step, const bool assemble_matrix)
 
     if (assemble_matrix)
         {
+            system_matrix.compress(VectorOperation::add);
             pressure_mass_matrix.reinit(sparsity_pattern.block(1, 1));
             pressure_mass_matrix.copy_from(system_matrix.block(1, 1));
             system_matrix.block(1, 1) = 0;
         }
+    this->system_rhs.compress(VectorOperation::add);
 }
 
 template <int dim>
 unsigned int
 NavierStokes<dim>::solve(const bool initial_step)
 {
+    TimerOutput::Scope timer_solve(this->computing_timer, "solve");
     const AffineConstraints<double> &constraints_used =
         initial_step ? this->constraints : zero_constraints;
 
-    SolverControl solver_control(system_matrix.m(),
-                                 1e-12 * this->system_rhs.l2_norm(),
-                                 true);
+    SolverControl solver_control(system_matrix.m(), 1e-12, true);
 
-    SolverFGMRES<BlockVector<double>> gmres(solver_control);
-    SparseILU<double>                 pmass_preconditioner;
-    pmass_preconditioner.initialize(pressure_mass_matrix,
-                                    SparseILU<double>::AdditionalData());
-
-    const BlockSchurPreconditioner<SparseILU<double>> preconditioner(
-        gamma,
-        this->params.viscosity,
-        system_matrix,
+    SolverFGMRES<TrilinosWrappers::MPI::BlockVector> gmres(solver_control);
+    TrilinosWrappers::PreconditionAMG                pmass_preconditioner;
+    pmass_preconditioner.initialize(
         pressure_mass_matrix,
-        pmass_preconditioner);
+        TrilinosWrappers::PreconditionAMG::AdditionalData());
+
+    TrilinosWrappers::PreconditionAMG A_inverse_preconditioner;
+    A_inverse_preconditioner.initialize(
+        system_matrix.block(0, 0),
+        TrilinosWrappers::PreconditionAMG::AdditionalData());
+
+    const BlockSchurPreconditioner<TrilinosWrappers::PreconditionAMG>
+        preconditioner(gamma,
+                       this->params.viscosity,
+                       system_matrix,
+                       pressure_mass_matrix,
+                       pmass_preconditioner,
+                       A_inverse_preconditioner,
+                       this->mpi_communicator,
+                       this->owned_partitioning);
     gmres.solve(system_matrix, newton_update, this->system_rhs, preconditioner);
     constraints_used.distribute(newton_update);
     return solver_control.last_step();
@@ -317,6 +354,7 @@ template <int dim>
 void
 NavierStokes<dim>::assemble_system(const bool initial_step)
 {
+    TimerOutput::Scope timer_assemble(this->computing_timer, "assemble_system");
     assemble(initial_step, true);
 }
 
@@ -325,58 +363,63 @@ void
 NavierStokes<dim>::newton_iteration(const double       tolerance,
                                     const unsigned int max_iterations)
 {
-    unsigned int line_search_n = 0;
-    double       last_res      = 1.0;
-    double       current_res   = 1.0;
-    bool         first_step    = true;
-
+    unsigned int                       line_search_n = 0;
+    double                             last_res      = 1.0;
+    double                             current_res   = 1.0;
+    bool                               first_step    = true;
+    TrilinosWrappers::MPI::BlockVector solution;
+    solution.reinit(this->owned_partitioning, this->mpi_communicator);
+    updated_solution.reinit(this->owned_partitioning,
+                            this->relevant_partitioning,
+                            this->mpi_communicator);
     while ((first_step || (current_res > tolerance)) &&
            line_search_n < max_iterations)
         {
             if (first_step)
                 {
-                    setup_system();
-                    updated_solution = this->solution;
+                    updated_solution = solution;
                     assemble_system(first_step);
                     solve(first_step);
-                    this->solution = newton_update;
-                    this->constraints.distribute(this->solution);
+                    solution = newton_update;
+                    this->constraints.distribute(solution);
                     first_step       = false;
-                    updated_solution = this->solution;
+                    updated_solution = solution;
                     assemble_rhs(first_step);
                     current_res = this->system_rhs.l2_norm();
-                    std::cout << "\tThe residual of initial guess is "
-                              << current_res << std::endl;
+                    this->pcout << "\tThe residual of initial guess is "
+                                << current_res << std::endl;
                     last_res = current_res;
                 }
             else
                 {
-                    updated_solution = this->solution;
+                    updated_solution = solution;
                     assemble_system(first_step);
-                    unsigned int it = solve(first_step);
-                    double       final_alpha;
-                    for (double alpha = 1.0; alpha > 1e-5; alpha *= 0.5)
-                        {
-                            updated_solution = this->solution;
-                            updated_solution.add(alpha, newton_update);
-                            this->constraints.distribute(updated_solution);
-                            assemble_rhs(first_step);
-                            current_res = this->system_rhs.l2_norm();
-                            if (current_res < last_res)
-                                {
-                                    final_alpha = alpha;
+                    unsigned int       it = solve(first_step);
+                    double             final_alpha;
+                    TimerOutput::Scope timer_line_search(this->computing_timer,
+                                                         "line_search");
+                    {
+                        for (double alpha = 1.0; alpha > 1e-5; alpha *= 0.5)
+                            {
+                                solution.add(alpha, newton_update);
+                                this->constraints.distribute(solution);
+                                assemble_rhs(first_step);
+                                current_res = this->system_rhs.l2_norm();
+                                final_alpha = alpha;
+                                if (current_res < last_res)
                                     break;
-                                }
-                        }
-                    std::cout << "\tLine search step " << line_search_n
-                              << ": FGMRES iterations = " << it
-                              << ", alpha = " << final_alpha
-                              << ", residual = " << current_res << std::endl;
-                    this->solution = updated_solution;
-                    last_res       = current_res;
+                            }
+                    }
+                    this->pcout << "\tLine search step " << line_search_n
+                                << ": FGMRES iterations = " << it
+                                << ", alpha = " << final_alpha
+                                << ", residual = " << current_res << std::endl;
+                    // solution = updated_solution;
+                    last_res = current_res;
                     ++line_search_n;
                 }
         }
+    this->relevant_solution = solution;
 }
 
 template <int dim>
@@ -388,11 +431,12 @@ NavierStokes<dim>::run()
         {
             if (cycle > 0)
                 this->refine_grid();
-            std::cout << "Cycle " << cycle << ": "
-                      << this->triangulation.n_active_cells() << " active cells"
-                      << std::endl;
+            setup_system();
             newton_iteration(1e-12, 1000);
             this->output_results(cycle);
+            this->computing_timer.print_summary();
+            this->computing_timer.reset();
+            this->pcout << std::endl;
         }
 }
 

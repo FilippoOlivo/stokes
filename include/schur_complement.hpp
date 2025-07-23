@@ -4,7 +4,7 @@
 
 #include <deal.II/lac/block_sparse_matrix.h>
 #include <deal.II/lac/sparse_matrix.h>
-#include <deal.II/lac/vector.h>
+#include <deal.II/lac/trilinos_vector.h>
 
 #include <deal.II/numerics/vector_tools.h>
 
@@ -16,41 +16,53 @@ template <class PreconditionerType>
 class SchurComplement : public Subscriptor
 {
   public:
-    SchurComplement(const BlockSparseMatrix<double>         &system_matrix,
-                    const InverseMatrix<SparseMatrix<double>,
-                                        PreconditionerType> &A_inverse);
+    SchurComplement(const TrilinosWrappers::BlockSparseMatrix &system_matrix,
+                    const InverseMatrix<TrilinosWrappers::SparseMatrix,
+                                        PreconditionerType>   &A_inverse,
+                    const std::vector<IndexSet> &owned_partitioning,
+                    const MPI_Comm              &mpi_communicator);
 
     void
-    vmult(Vector<double> &dst, const Vector<double> &src) const;
+    vmult(TrilinosWrappers::MPI::Vector       &dst,
+          const TrilinosWrappers::MPI::Vector &src) const;
 
   private:
-    const SmartPointer<const BlockSparseMatrix<double>> system_matrix;
+    const SmartPointer<const TrilinosWrappers::BlockSparseMatrix> system_matrix;
     const SmartPointer<
-        const InverseMatrix<SparseMatrix<double>, PreconditionerType>>
+        const InverseMatrix<TrilinosWrappers::SparseMatrix, PreconditionerType>>
         A_inverse;
 
-    mutable Vector<double> tmp1, tmp2;
+    mutable TrilinosWrappers::MPI::Vector tmp1, tmp2;
+    MPI_Comm                              mpi_communicator;
+    std::vector<IndexSet>                 owned_partitioning;
 };
 
 template <class PreconditionerType>
 SchurComplement<PreconditionerType>::SchurComplement(
-    const BlockSparseMatrix<double> &system_matrix,
-    const InverseMatrix<SparseMatrix<double>, PreconditionerType> &A_inverse)
+    const TrilinosWrappers::BlockSparseMatrix &system_matrix,
+    const InverseMatrix<TrilinosWrappers::SparseMatrix, PreconditionerType>
+                                &A_inverse,
+    const std::vector<IndexSet> &owned_partitioning,
+    const MPI_Comm              &mpi_communicator)
     : system_matrix(&system_matrix)
     , A_inverse(&A_inverse)
-    , tmp1(system_matrix.block(0, 0).m())
-    , tmp2(system_matrix.block(0, 0).m())
+    , tmp1(owned_partitioning[0], mpi_communicator)
+    , tmp2(owned_partitioning[0], mpi_communicator)
+    , mpi_communicator(mpi_communicator)
+    , owned_partitioning(owned_partitioning)
 {}
 
 template <class PreconditionerType>
 void
-SchurComplement<PreconditionerType>::vmult(Vector<double>       &dst,
-                                           const Vector<double> &src) const
+SchurComplement<PreconditionerType>::vmult(
+    TrilinosWrappers::MPI::Vector       &dst,
+    const TrilinosWrappers::MPI::Vector &src) const
 {
     system_matrix->block(0, 1).vmult(tmp1, src);
     A_inverse->vmult(tmp2, tmp1);
     system_matrix->block(1, 0).vmult(dst, tmp2);
-    Vector<double> tmp_mass(src.size());
+    TrilinosWrappers::MPI::Vector tmp_mass(owned_partitioning[1],
+                                           mpi_communicator);
     system_matrix->block(1, 1).vmult(tmp_mass, src);
     dst += tmp_mass;
 }

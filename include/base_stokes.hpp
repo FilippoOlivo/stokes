@@ -1,5 +1,6 @@
 #include "common.hpp"
 
+
 using namespace dealii;
 
 template <int dim>
@@ -9,17 +10,15 @@ class BaseStokes : public CommonCFD<dim>
     BaseStokes(const Parameters &params, std::string output_base_name);
     void
     run() override;
-    BlockVector<double>
+    TrilinosWrappers::MPI::BlockVector
     get_solution();
 
   protected:
-    BlockSparsityPattern sparsity_pattern;
-    BlockSparsityPattern preconditioner_sparsity_pattern;
+    BlockSparsityPattern                sparsity_pattern;
+    BlockSparsityPattern                preconditioner_sparsity_pattern;
+    TrilinosWrappers::BlockSparseMatrix preconditioner_matrix;
 
-    BlockSparseMatrix<double> system_matrix;
-    BlockSparseMatrix<double> preconditioner_matrix;
-
-    SparseDirectUMFPACK A_preconditioner;
+    TrilinosWrappers::PreconditionAMG A_preconditioner;
 
     void
     setup_constraints();
@@ -48,16 +47,14 @@ BaseStokes<dim>::BaseStokes(const Parameters &params,
 
     : CommonCFD<dim>(params, output_base_name){};
 
-
-
 template <int dim>
 void
 BaseStokes<dim>::setup_constraints()
 {
-    TimerOutput::Scope timer(this->computing_timer, "setup_constraints");
     // Initialize the this->constraints
     this->constraints.clear();
-    this->constraints.reinit();
+    this->constraints.reinit(this->locally_owned_dofs,
+                             this->locally_relevant_dofs);
 
     const FEValuesExtractors::Vector velocities(0);
     DoFTools::make_hanging_node_constraints(this->dof_handler,
@@ -96,14 +93,10 @@ template <int dim>
 void
 BaseStokes<dim>::setup_preconditioner_matrix()
 {
-    TimerOutput::Scope timer(this->computing_timer,
-                             "setup_preconditioner_matrix");
     preconditioner_matrix.clear();
+    A_preconditioner.clear();
 
-    // Initialize sparsity pattern and preconditioner matrix
-    BlockDynamicSparsityPattern preconditioner_dsp(this->dofs_per_block,
-                                                   this->dofs_per_block);
-
+    // Initialize the sparsity pattern and preconditioner matrix
     Table<2, DoFTools::Coupling> preconditioner_coupling(dim + 1, dim + 1);
     for (unsigned int c = 0; c < dim + 1; ++c)
         for (unsigned int d = 0; d < dim + 1; ++d)
@@ -111,32 +104,58 @@ BaseStokes<dim>::setup_preconditioner_matrix()
                 preconditioner_coupling[c][d] = DoFTools::always;
             else
                 preconditioner_coupling[c][d] = DoFTools::none;
-
+    BlockDynamicSparsityPattern preconditioner_dsp(this->relevant_partitioning);
     DoFTools::make_sparsity_pattern(this->dof_handler,
                                     preconditioner_coupling,
                                     preconditioner_dsp,
                                     this->constraints,
                                     false);
+    SparsityTools::distribute_sparsity_pattern(preconditioner_dsp,
+                                               this->locally_owned_dofs,
+                                               this->mpi_communicator,
+                                               this->locally_relevant_dofs);
+
     preconditioner_sparsity_pattern.copy_from(preconditioner_dsp);
-    preconditioner_matrix.reinit(preconditioner_sparsity_pattern);
+    preconditioner_matrix.reinit(this->owned_partitioning,
+                                 preconditioner_sparsity_pattern,
+                                 this->mpi_communicator);
 }
 
 template <int dim>
 void
 BaseStokes<dim>::setup_system()
 {
-    this->setup_dofhandler();
-    setup_constraints();
-    setup_system_matrix();
-    setup_preconditioner_matrix();
-
-    TimerOutput::Scope timer(this->computing_timer, "setup_solution_vectors");
+    TimerOutput::Scope t_dof(this->computing_timer, "setup_dofhandler");
     {
-        this->solution.reinit(this->dofs_per_block);
+        this->setup_dofhandler();
     }
-    TimerOutput::Scope timer_rhs(this->computing_timer, "setup_system_rhs");
+    TimerOutput::Scope t_constraints(this->computing_timer,
+                                     "setup_constraints");
     {
-        this->system_rhs.reinit(this->dofs_per_block);
+        setup_constraints();
+    }
+    TimerOutput::Scope t_system(this->computing_timer, "setup_system_matrix");
+    {
+        setup_system_matrix();
+    }
+    TimerOutput::Scope t_prec(this->computing_timer,
+                              "setup_preconditioner_matrix");
+    {
+        setup_preconditioner_matrix();
+    }
+
+    TimerOutput::Scope t_solution(this->computing_timer, "setup_solution");
+    {
+        // Initialize the system right-hand side vector
+        this->relevant_solution.reinit(this->owned_partitioning,
+                                       this->relevant_partitioning,
+                                       this->mpi_communicator);
+    }
+    TimerOutput::Scope t_rhs(this->computing_timer, "setup_system_rhs");
+    {
+        // Initialize the system right-hand side vector
+        this->system_rhs.reinit(this->owned_partitioning,
+                                this->mpi_communicator);
     }
 }
 
@@ -162,50 +181,60 @@ template <int dim>
 void
 BaseStokes<dim>::solve()
 {
-    const InverseMatrix<SparseMatrix<double>, SparseDirectUMFPACK> A_inverse(
-        system_matrix.block(0, 0), A_preconditioner);
-    Vector<double> tmp(this->solution.block(0).size());
+    TrilinosWrappers::MPI::BlockVector solution(this->owned_partitioning,
+                                                this->mpi_communicator);
+    const InverseMatrix<TrilinosWrappers::SparseMatrix,
+                        TrilinosWrappers::PreconditionAMG>
+        A_inverse(this->system_matrix.block(0, 0), A_preconditioner);
+    TrilinosWrappers::MPI::Vector tmp(this->owned_partitioning[0],
+                                      this->mpi_communicator);
 
-    TimerOutput::Scope timer(this->computing_timer, "solve_pressure");
+    TimerOutput::Scope t(this->computing_timer, "solve_pressure");
     {
-        Vector<double> schur_rhs(this->solution.block(1).size());
+        TrilinosWrappers::MPI::Vector schur_rhs(this->owned_partitioning[1],
+                                                this->mpi_communicator);
         A_inverse.vmult(tmp, this->system_rhs.block(0));
-        system_matrix.block(1, 0).vmult(schur_rhs, tmp);
+
+        this->system_matrix.block(1, 0).vmult(schur_rhs, tmp);
         schur_rhs -= this->system_rhs.block(1);
 
-        SchurComplement<SparseDirectUMFPACK> schur_complement(system_matrix,
-                                                              A_inverse);
-        std::cout << "  Solving Schur complement for pressure" << std::endl;
-        SolverControl solver_control(10000, 1e-12 * schur_rhs.l2_norm());
-        SolverCG<Vector<double>> cg(solver_control);
+        SchurComplement<TrilinosWrappers::PreconditionAMG> schur_complement(
+            this->system_matrix,
+            A_inverse,
+            this->owned_partitioning,
+            this->mpi_communicator);
 
-        SparseILU<double> preconditioner;
-        preconditioner.initialize(preconditioner_matrix.block(1, 1),
-                                  SparseILU<double>::AdditionalData());
+        SolverControl solver_control(solution.block(1).size(),
+                                     1e-12 * schur_rhs.l2_norm());
+        SolverCG<TrilinosWrappers::MPI::Vector> cg(solver_control);
+        TrilinosWrappers::PreconditionAMG       preconditioner;
+        preconditioner.initialize(
+            this->preconditioner_matrix.block(1, 1),
+            TrilinosWrappers::PreconditionAMG::AdditionalData());
 
-        InverseMatrix<SparseMatrix<double>, SparseILU<double>> m_inverse(
-            preconditioner_matrix.block(1, 1), preconditioner);
+        InverseMatrix<TrilinosWrappers::SparseMatrix,
+                      TrilinosWrappers::PreconditionAMG>
+            m_inverse(this->preconditioner_matrix.block(1, 1), preconditioner);
 
-        cg.solve(schur_complement,
-                 this->solution.block(1),
-                 schur_rhs,
-                 m_inverse);
+        cg.solve(schur_complement, solution.block(1), schur_rhs, m_inverse);
 
-        this->constraints.distribute(this->solution);
+        this->constraints.distribute(solution);
 
-        std::cout << "  " << solver_control.last_step()
-                  << " outer CG Schur complement iterations for pressure"
-                  << std::endl;
+        this->pcout << "  " << solver_control.last_step()
+                    << " outer CG Schur complement iterations for pressure"
+                    << std::endl;
     }
-    TimerOutput::Scope t2(this->computing_timer, "solve_velocity");
+
+    TimerOutput::Scope t_velocity(this->computing_timer, "solve_velocity");
     {
-        system_matrix.block(0, 1).vmult(tmp, this->solution.block(1));
+        this->system_matrix.block(0, 1).vmult(tmp, solution.block(1));
         tmp *= -1;
         tmp += this->system_rhs.block(0);
 
-        A_inverse.vmult(this->solution.block(0), tmp);
+        A_inverse.vmult(solution.block(0), tmp);
 
-        this->constraints.distribute(this->solution);
+        this->constraints.distribute(solution);
+        this->relevant_solution = solution;
     }
 }
 
@@ -225,7 +254,7 @@ BaseStokes<dim>::run()
             solve();
             this->computing_timer.print_summary();
             this->computing_timer.reset();
-            std::cout << std::endl;
-            this->output_results(cycle);
+            this->pcout << std::endl;
+            this->output_results(0);
         }
 }

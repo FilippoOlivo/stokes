@@ -4,10 +4,8 @@ template <int dim>
 void
 StableStokes<dim>::setup_system_matrix()
 {
-    TimerOutput::Scope timer(this->computing_timer, "setup_system_matrix");
     this->system_matrix.clear();
     // Initialize the sparsity pattern and system matrix
-    BlockDynamicSparsityPattern dsp(this->dofs_per_block, this->dofs_per_block);
     Table<2, DoFTools::Coupling> coupling(dim + 1, dim + 1);
     for (unsigned int c = 0; c < dim + 1; ++c)
         for (unsigned int d = 0; d < dim + 1; ++d)
@@ -15,10 +13,17 @@ StableStokes<dim>::setup_system_matrix()
                 coupling[c][d] = DoFTools::always;
             else
                 coupling[c][d] = DoFTools::none;
+    BlockDynamicSparsityPattern dsp(this->relevant_partitioning);
     DoFTools::make_sparsity_pattern(
         this->dof_handler, coupling, dsp, this->constraints, false);
+    SparsityTools::distribute_sparsity_pattern(dsp,
+                                               this->locally_owned_dofs,
+                                               this->mpi_communicator,
+                                               this->locally_relevant_dofs);
     this->sparsity_pattern.copy_from(dsp);
-    this->system_matrix.reinit(this->sparsity_pattern);
+    this->system_matrix.reinit(this->owned_partitioning,
+                               this->sparsity_pattern,
+                               this->mpi_communicator);
 }
 
 template <int dim>
@@ -80,6 +85,8 @@ StableStokes<dim>::assemble_system()
 
     for (const auto &cell : this->dof_handler.active_cell_iterators())
         {
+            if (cell->is_locally_owned() == false)
+                continue; // Skip artificial cells
             fe_values.reinit(cell);
 
             local_matrix                = 0;
@@ -123,9 +130,13 @@ StableStokes<dim>::assemble_system()
                 this->preconditioner_matrix);
         }
     // Initialize the preconditioner
-    this->A_preconditioner = SparseDirectUMFPACK();
-    this->A_preconditioner.initialize(this->system_matrix.block(0, 0),
-                                      SparseDirectUMFPACK::AdditionalData());
+    this->system_matrix.compress(VectorOperation::add);
+    this->system_rhs.compress(VectorOperation::add);
+    this->preconditioner_matrix.compress(VectorOperation::add);
+    this->A_preconditioner = TrilinosWrappers::PreconditionAMG();
+    this->A_preconditioner.initialize(
+        this->system_matrix.block(0, 0),
+        TrilinosWrappers::PreconditionAMG::AdditionalData());
 }
 
 template class StableStokes<2>;
