@@ -1,0 +1,35 @@
+---
+title: "Topics in Computational Fluid Dynamics - Exam"
+author: "Filippo Olivo"
+date: "July 2025"
+bibliography: bibliography.bib
+---
+
+This report contains the results valid as exam for the course of "Topics in Computational Fluid Dynamics". The goal of the project is to program and test a parallelize version of Stokes and Navier Stokes equations. All the simulations have been programmed using deal.II v9.6.2 library [@dealii]. The structure of this report will be the following on:
+
+#. Brief introduction to Stokes and Navier Stokes equations
+#. Problem statement 
+#. Finite element discretization
+#. Implementation details
+#. Result
+
+## Stokes and Navier-Stokes equations
+
+Stokes and Navier-Stokes are mathematical models that describe the motion of incompressible, viscous fluids, whether in liquid or gas form. These models govern how the fluid’s pressure and velocity fields evolve over time within a given domain. They are fundamentally based on two conservation principles:
+
+- Mass conservation: This principle ensures that fluid cannot spontaneously appear or disappear. For incompressible flows, it leads to the condition:
+    $$
+    \nabla \cdot u = 0
+    $$
+    This expresses that the net volume of fluid flowing into any point is equal to the volume flowing out, preserving the total volume locally.
+
+- Momentum conservation: This accounts for the effects of internal and external forces acting on the fluid. Internal forces include viscous stresses (from fluid friction) and pressure gradients, while external forces typically involve gravity or other body forces. In Stokes equation the momentum conservation is expressed as: 
+    $$
+    \nu \Delta u + \nabla p = f
+    $$
+
+
+## References 
+
+::: {#refs}
+:::

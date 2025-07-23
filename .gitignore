@@ -46,3 +46,9 @@
 
 # build directories
 build/
+
+# Report files
+*.pdf
+*.html
+._*
+report_files/

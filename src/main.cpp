@@ -1,6 +1,5 @@
 #include "../include/navier_stokes.hpp"
 
-
 int
 main(int argc, char *argv[])
 {
