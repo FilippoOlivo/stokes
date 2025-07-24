@@ -2,6 +2,7 @@
 
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_gmres.h>
+#include <deal.II/lac/trilinos_solver.h>
 #include <deal.II/lac/trilinos_vector.h>
 
 using namespace dealii;
@@ -36,10 +37,13 @@ InverseMatrix<MatrixType, PreconditionerType>::vmult(
     TrilinosWrappers::MPI::Vector       &dst,
     const TrilinosWrappers::MPI::Vector &src) const
 {
-    SolverControl solver_control(src.size(), 1e-6 * src.l2_norm());
-    SolverGMRES<TrilinosWrappers::MPI::Vector> cg(solver_control);
+    SolverControl solver_control(src.size(), 1e-14 * src.l2_norm());
+
+    TrilinosWrappers::SolverDirect::AdditionalData data;
+    data.solver_type = "Klu"; // o "SuperLU", "MUMPS", etc.
+
+    TrilinosWrappers::SolverDirect solver(solver_control, data);
 
     dst = 0;
-
-    cg.solve(*matrix, dst, src, *preconditioner);
+    solver.solve(*matrix, dst, src);
 }

@@ -392,16 +392,18 @@ NavierStokes<dim>::newton_iteration(const double       tolerance,
                 }
             else
                 {
-                    updated_solution = solution;
+                    // updated_solution = solution;
                     assemble_system(first_step);
                     unsigned int       it = solve(first_step);
                     double             final_alpha;
                     TimerOutput::Scope timer_line_search(this->computing_timer,
                                                          "line_search");
+                    solution = updated_solution;
                     {
                         for (double alpha = 1.0; alpha > 1e-5; alpha *= 0.5)
                             {
                                 solution.add(alpha, newton_update);
+                                updated_solution = solution;
                                 this->constraints.distribute(solution);
                                 assemble_rhs(first_step);
                                 current_res = this->system_rhs.l2_norm();

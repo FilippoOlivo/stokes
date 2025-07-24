@@ -3,6 +3,12 @@ title: "Topics in Computational Fluid Dynamics - Exam"
 author: "Filippo Olivo"
 date: "July 2025"
 bibliography: bibliography.bib
+format:
+  pdf:
+    title-block-style: none
+    title-block-categories: false
+    title-block-author-font-size: small
+    title-block-date-font-size: small
 ---
 
 This report contains the results valid as exam for the course of "Topics in Computational Fluid Dynamics". The goal of the project is to program and test a parallelize version of Stokes and Navier Stokes equations. All the simulations have been programmed using deal.II v9.6.2 library [@dealii]. The structure of this report will be the following on:
@@ -13,7 +19,7 @@ This report contains the results valid as exam for the course of "Topics in Comp
 #. Implementation details
 #. Result
 
-## Stokes and Navier-Stokes equations
+# Stokes and Navier-Stokes equations
 
 Stokes and Navier-Stokes are mathematical models that describe the motion of incompressible, viscous fluids, whether in liquid or gas form. These models govern how the fluid’s pressure and velocity fields evolve over time within a given domain. They are fundamentally based on two conservation principles:
 
@@ -27,9 +33,26 @@ Stokes and Navier-Stokes are mathematical models that describe the motion of inc
     $$
     \nu \Delta u + \nabla p = f
     $$
+    where essentially the term $\nu \Delta u$ represent the linear viscous forces, while the term $\nabla p$ represent the forces caused by the pressure gradients. This first equation negletes the convective acceleration non linear terms which takes into account the internal friction caused by the velocity gradients. This is commonly responsible of compre phenomena such as vortices and turbolence. The Navier-Stokes equation is:
+    $$
+    (u \cdot \nabla)u - \nu \Delta u + \nabla p = f
+    $$
 
+In the context of fluid dynamics, a key dimensionless quantity is the Reynolds number, which characterizes the ratio between inertial and viscous forces in a flow. It is defined as:
+$$
+\text{Re} = \frac{U L}{\nu}
+$$
+where $U$ is a characteristic velocity, $L$ is a characteristic length scale (e.g., the diameter of a cylinder), and $\nu$ is the kinematic viscosity of the fluid.
 
-## References 
+The Reynolds number governs the qualitative behavior of the flow. Based on its value, we can distinguish different flow regimes:
+
+- $\text{Re} \leq 5$: Viscous forces dominate, and inertial effects are negligible. The flow remains attached to the geometry with no separation, and the solutions of the Stokes and Navier–Stokes equations are nearly indistinguishable.
+- $5 < \text{Re} < 40$: The onset of steady recirculating vortices appears in the wake of obstacles such as cylinders.
+- $\text{Re} \geq 40$: More complex behaviors emerge, including vortex shedding and potentially unsteady wake dynamics.
+
+For moderate to high Reynolds numbers, although a steady-state finite element solution may still exist mathematically, it may no longer represent a physically meaningful state—since the true behavior of the system could be inherently unsteady or even chaotic. In section, we will see these phenomena from the simulations.
+
+# References 
 
 ::: {#refs}
 :::

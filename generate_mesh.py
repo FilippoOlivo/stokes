@@ -10,7 +10,7 @@ def generate_geo_file(r, cx, cy, template, output_file):
         f.write(content)
 
 cy = [.5]
-cx = [1.5]
+cx = [1]
 r = [0.1]
 
 template = "mesh_template.geo"
