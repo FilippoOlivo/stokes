@@ -9,13 +9,14 @@ format:
     title-block-categories: false
     title-block-author-font-size: small
     title-block-date-font-size: small
+    number-sections: true
 ---
 
 This report contains the results valid as exam for the course of "Topics in Computational Fluid Dynamics". The goal of the project is to program and test a parallelize version of Stokes and Navier Stokes equations. All the simulations have been programmed using deal.II v9.6.2 library [@dealii]. The structure of this report will be the following on:
 
 #. Brief introduction to Stokes and Navier Stokes equations
-#. Problem statement 
 #. Finite element discretization
+#. Problem statement
 #. Implementation details
 #. Result
 
@@ -51,6 +52,67 @@ The Reynolds number governs the qualitative behavior of the flow. Based on its v
 - $\text{Re} \geq 40$: More complex behaviors emerge, including vortex shedding and potentially unsteady wake dynamics.
 
 For moderate to high Reynolds numbers, although a steady-state finite element solution may still exist mathematically, it may no longer represent a physically meaningful state—since the true behavior of the system could be inherently unsteady or even chaotic. In section, we will see these phenomena from the simulations.
+
+# Finite element discretisation
+
+In this section we will discuss the finite element discretization for both Stokes and Navier-Stokes models separately.
+
+## Stokes
+
+Let first recall the system of equation which define the Stokes model
+
+$$
+\begin{cases}
+-\nu \Delta \vec{u} + \nabla P = \vec{f} & \text{ in } \Omega \\
+\text{div}\vec{u} = 0 & \text{ in } \Omega \\
+\vec{u} = \vec{g} & \text{ on } \Gamma_D \\
+-P\vec{n} + \nu \frac{\partial \vec{u}}{\partial \vec{n}} = \vec{d} & \text{ on } \Gamma_N
+\end{cases}
+$$
+
+Given this formulation, we can derive the weak formulation of the Stokes problem by considering the following system:
+
+$$
+\begin{cases}
+\int_\Omega (-\nu \Delta \vec{u} + \nabla P) \vec{v} = \int_\Omega \vec{f} \vec{v} & \forall \vec{v}\in V \\
+\int_\Omega \text{div}( \vec{u} ) q = 0 & \forall q \in Q \\
+\vec{u} = \vec{g} & \text{ on } \Gamma_D \\
+\end{cases}
+$$
+where $V$ is the velocity test function space while $Q$ is the pressure text function space.
+
+Consider the first equation:
+$$
+\int_\Omega (-\nu \Delta \vec{u} + \nabla P) \vec{v}  = \nu \int_\Omega \nabla \vec{u} : \nabla \vec{v} - \int_\Omega P \text{div} (\vec{v}) - \underbrace{\int_{\Gamma} \nu \frac{\partial \vec{u}}{\partial \vec{n}} \cdot \vec{v}}_{\int_\Gamma \vec{d}\cdot \vec{v}}
+$$
+So the final system is:
+
+$$
+\begin{cases}
+\nu \int_\Omega \nabla \vec{u} : \nabla \vec{v} - \int_\Omega P \text{div} (\vec{v}) = \int_\Gamma \vec{d}\cdot \vec{v} + \int_\Omega \vec{f}\vec{v} & \forall \vec{v}\in V \\
+\int_\Omega \text{div}( \vec{u} ) q = 0 & \forall q \in Q \\
+\vec{u} = \vec{g} & \text{ on } \Gamma_D \\
+\end{cases}
+$$
+Given the weak formulation we can determine the following function spaces:
+$$
+V = [H^1(\Omega)]^d \,\, \text{ and } \,\, Q = L^2(\Omega)
+$$
+where $H^1(\Omega)$ is the Sobolev space, which includes all functions whose first derivatives are square integrable, while $L^2(\Omega)$ is the space of square-integrable functions.
+
+For semplicity consider:
+$$
+a: V\times V \rightarrow \mathbb{R} , \,\, a(\vec{u}, \vec{v} )= \int_\Omega \nu \nabla \vec{u} : \nabla \vec{v} \\
+b V\times Q \rightarrow \mathbb{R} , \,\, b(\vec{u}, \vec{q}) = \int_\Omega P\text{div}(\vec{u})
+$$
+
+This formulation satisfies the Ladyzhenskaya–Babuška–Brezzi (inf-sup) condition. As a result, the problem is well-posed in both the velocity and pressure spaces, and the solution pair $(\vec{u}, p)$ is unique up to an additive constant in the pressure component.
+
+In order to consider the finite element approximantion of the Stokes problem let consider a mesh $\tau_h$ and a subset of the tests function spaces $V_h \subset V$ and $Q_h\subset Q$. We are essentially looking for $(u_h P_h) \in V_h \times Q_h$ such that the discrete weak formulation of the problem is satisfied:
+$$
+a(\vec{u_h}, \vec{v_h}) - b(\vec{v_h}, P_h) = F(\vec{v_h}) & \forall \vec{v_h}\in V_h \\
+
+$$
 
 # References 
 
