@@ -437,6 +437,7 @@ NavierStokes<dim>::run()
             newton_iteration(1e-12, 1000);
             this->output_results(cycle);
             this->computing_timer.print_summary();
+            this->write_timer_to_csv();
             this->computing_timer.reset();
             this->pcout << std::endl;
         }

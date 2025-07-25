@@ -38,6 +38,8 @@
 #include <deal.II/numerics/error_estimator.h>
 #include <deal.II/numerics/vector_tools.h>
 
+#include <filesystem>
+
 #include "../include/boundary.hpp"
 #include "../include/parameters.hpp"
 #include "../include/schur_complement.hpp"
@@ -92,6 +94,8 @@ class CommonCFD
     output_results(unsigned int cycle);
     void
     refine_grid();
+    void
+    write_timer_to_csv();
 };
 
 template <int dim>
@@ -210,4 +214,38 @@ BlockVector<double>
 CommonCFD<dim>::get_solution()
 {
     return relevant_solution;
+}
+
+template <int dim>
+void
+CommonCFD<dim>::write_timer_to_csv()
+{
+    if (mpi_rank != 0)
+        return; // Only the root process writes the timer data
+
+    pcout << "Writing timer data to CSV file..." << std::endl;
+    namespace fs            = std::filesystem;
+    std::string filename    = output_base_name + "timing.csv";
+    const bool  file_exists = fs::exists(filename);
+
+    std::ofstream           file(filename, std::ios::app);
+    TimerOutput::OutputData data_type =
+        TimerOutput::OutputData::total_wall_time;
+    const auto timing_data = computing_timer.get_summary_data(data_type);
+    pcout << timing_data.size() << " timing entries found." << std::endl;
+    for (const auto &entry : timing_data)
+        pcout << entry.first << std::endl;
+
+    // Write header only if file doesn't exist
+    if (!file_exists)
+        {
+            file << "MPI Size,N DOFs,";
+            for (const auto &entry : timing_data)
+                file << entry.first << ",";
+            file << std::endl;
+        }
+    file << mpi_size << "," << dof_handler.n_dofs() << ",";
+    for (const auto &entry : timing_data)
+        file << entry.second << ",";
+    file << std::endl;
 }
