@@ -1,11 +1,11 @@
-L = 4.0;
-H = 1.0;
+L = 5.0;
+H = 1.5;
 R = 0.1;
-cx = 1;
-cy = 0.8;
+cx = 0.5;
+cy = 1;
 
-lc_wall = 0.05;
-lc_cylinder = 0.025;
+lc_wall = 0.075;
+lc_cylinder = 0.0375;
 
 // Outer rectangle
 Point(1) = {0, 0, 0, lc_wall};
@@ -32,8 +32,8 @@ Circle(204) = {104, 100, 101};
 Line Loop(20) = {201, 202, 203, 204};
 
 
-cx = 2;
-cy = 0.2;
+cx = 1.5;
+cy = 0.5;
 
 // Cylinder 2
 Point(1100) = {cx, cy, 0, lc_cylinder};
@@ -47,6 +47,7 @@ Circle(1202) = {1102, 1100, 1103};
 Circle(1203) = {1103, 1100, 1104};
 Circle(1204) = {1104, 1100, 1101};
 Line Loop(120) = {1201, 1202, 1203, 1204};
+
 
 // Surface with hole
 Plane Surface(30) = {10, 20, 120};
