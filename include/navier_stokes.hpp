@@ -106,7 +106,7 @@ class NavierStokes : public CommonCFD<dim>
 
     TrilinosWrappers::BlockSparseMatrix system_matrix;
     TrilinosWrappers::SparseMatrix      pressure_mass_matrix;
-    double                              gamma = 2.0;
+    double                              gamma = 0.5;
 
     void
     setup_constraints();
@@ -127,7 +127,8 @@ class NavierStokes : public CommonCFD<dim>
                        FullMatrix<double>          &local_matrix);
 
     void
-    build_local_rhs(std::vector<double>         &div_phi_u,
+    build_local_rhs(std::vector<double> &div_phi_u,
+
                     std::vector<Tensor<2, dim>> &grad_phi_u,
                     std::vector<double>         &phi_p,
                     std::vector<Tensor<1, dim>> &phi_u,

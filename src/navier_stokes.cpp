@@ -147,16 +147,23 @@ NavierStokes<dim>::build_local_matrix(std::vector<double>         &div_phi_u,
                                       const unsigned int  dofs_per_cell,
                                       FullMatrix<double> &local_matrix)
 {
+    double velocity_divergence = trace(velocity_gradients);
     for (unsigned int i = 0; i < dofs_per_cell; ++i)
         for (unsigned int j = 0; j < dofs_per_cell; ++j)
-            local_matrix(i, j) +=
-                (this->params.viscosity *
-                     scalar_product(grad_phi_u[i], grad_phi_u[j]) +
-                 phi_u[i] * (velocity_gradients * phi_u[j]) +
-                 phi_u[i] * (grad_phi_u[j] * velocity_values) -
-                 div_phi_u[i] * phi_p[j] - phi_p[i] * div_phi_u[j] +
-                 gamma * div_phi_u[i] * div_phi_u[j] + phi_p[i] * phi_p[j]) *
-                JxW;
+            {
+                double a = this->params.viscosity *
+                           scalar_product(grad_phi_u[i], grad_phi_u[j]);
+                double m = phi_u[i] * (velocity_gradients * phi_u[j]) +
+                           0.5 * div_phi_u[j] * velocity_values * phi_u[i];
+                double n = phi_u[i] * (grad_phi_u[j] * velocity_values) +
+                           0.5 * velocity_divergence * phi_u[i] * phi_u[j];
+                double c             = a + m + n;
+                double b             = div_phi_u[i] * phi_p[j];
+                double b_t           = phi_p[i] * div_phi_u[j];
+                double p_p           = phi_p[i] * phi_p[j];
+                double stabilization = gamma * div_phi_u[i] * div_phi_u[j];
+                local_matrix(i, j) += (c - b - b_t + p_p + stabilization) * JxW;
+            }
 }
 
 template <int dim>
@@ -175,14 +182,24 @@ NavierStokes<dim>::build_local_rhs(std::vector<double>         &div_phi_u,
     for (unsigned int i = 0; i < dofs_per_cell; ++i)
         {
             double velocity_divergence = trace(velocity_gradients);
-            local_rhs(i) +=
-                (-this->params.viscosity *
-                     scalar_product(grad_phi_u[i], velocity_gradients) -
-                 phi_u[i] * (velocity_gradients * velocity_values) +
-                 div_phi_u[i] * pressure_value +
-                 phi_p[i] * velocity_divergence -
-                 gamma * div_phi_u[i] * velocity_divergence) *
-                JxW;
+            double viscous_residual =
+                this->params.viscosity *
+                scalar_product(grad_phi_u[i], velocity_gradients);
+
+            double convective_residual =
+                phi_u[i] * (velocity_gradients * velocity_values) +
+                0.5 * velocity_divergence * (phi_u[i] * velocity_values);
+
+            double pressure_residual =
+                div_phi_u[i] * pressure_value + phi_p[i] * velocity_divergence;
+
+
+            double stabilization_term =
+                gamma * velocity_divergence * div_phi_u[i];
+
+            local_rhs(i) += (-viscous_residual - convective_residual +
+                             pressure_residual - stabilization_term) *
+                            JxW;
         }
 }
 
@@ -199,7 +216,8 @@ NavierStokes<dim>::assemble(const bool initial_step, const bool assemble_matrix)
     FEValues<dim>     fe_values(this->fe,
                             quadrature_formula,
                             update_values | update_quadrature_points |
-                                update_JxW_values | update_gradients);
+                                update_JxW_values | update_gradients |
+                                update_hessians);
 
     // Store the number of degrees of freedom per cell and quadrature points
     const unsigned int dofs_per_cell = this->fe.n_dofs_per_cell();
@@ -232,7 +250,6 @@ NavierStokes<dim>::assemble(const bool initial_step, const bool assemble_matrix)
 
             local_matrix = 0;
             local_rhs    = 0;
-
             // Compute velocity, pressure and velocity gradient values at
             // quadrature points
             fe_values[velocities].get_function_values(updated_solution,
@@ -241,7 +258,6 @@ NavierStokes<dim>::assemble(const bool initial_step, const bool assemble_matrix)
                                                     pressure_values);
             fe_values[velocities].get_function_gradients(updated_solution,
                                                          velocity_gradients);
-
             for (unsigned int q = 0; q < n_q_points; ++q)
                 {
                     // Get symmetric gradient, divergence, and values of
@@ -250,12 +266,11 @@ NavierStokes<dim>::assemble(const bool initial_step, const bool assemble_matrix)
                         {
                             div_phi_u[k] =
                                 fe_values[velocities].divergence(k, q);
-                            phi_p[k] = fe_values[pressure].value(k, q);
                             grad_phi_u[k] =
                                 fe_values[velocities].gradient(k, q);
                             phi_u[k] = fe_values[velocities].value(k, q);
+                            phi_p[k] = fe_values[pressure].value(k, q);
                         }
-
                     if (assemble_matrix)
                         build_local_matrix(div_phi_u,
                                            grad_phi_u,
