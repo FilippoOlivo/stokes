@@ -205,7 +205,7 @@ CommonCFD<dim>::refine_grid()
         fe.component_mask(velocities));
 
     parallel::distributed::GridRefinement::refine_and_coarsen_fixed_number(
-        triangulation, estimated_error_per_cell, 0.2, 0.1);
+        triangulation, estimated_error_per_cell, 0.3, 0.1);
     triangulation.execute_coarsening_and_refinement();
 }
 
@@ -223,7 +223,6 @@ CommonCFD<dim>::write_timer_to_csv()
     if (mpi_rank != 0)
         return; // Only the root process writes the timer data
 
-    pcout << "Writing timer data to CSV file..." << std::endl;
     namespace fs            = std::filesystem;
     std::string filename    = output_base_name + "timing.csv";
     const bool  file_exists = fs::exists(filename);
@@ -232,9 +231,6 @@ CommonCFD<dim>::write_timer_to_csv()
     TimerOutput::OutputData data_type =
         TimerOutput::OutputData::total_wall_time;
     const auto timing_data = computing_timer.get_summary_data(data_type);
-    pcout << timing_data.size() << " timing entries found." << std::endl;
-    for (const auto &entry : timing_data)
-        pcout << entry.first << std::endl;
 
     // Write header only if file doesn't exist
     if (!file_exists)

@@ -63,24 +63,21 @@ BlockSchurPreconditioner<PreconditionerMp>::vmult(
     // Temporary vector for velocity component
     TrilinosWrappers::MPI::Vector utmp(owned_partitioning[0], mpi_communicator);
 
-    {
-        SolverControl solver_control(1000, 1e-6 * src.block(1).l2_norm());
-        SolverCG<TrilinosWrappers::MPI::Vector> cg(solver_control);
+    SolverControl solver_control(1000, 1e-6 * src.block(1).l2_norm());
+    SolverCG<TrilinosWrappers::MPI::Vector> cg(solver_control);
 
-        dst.block(1) = 0.0;
-        cg.solve(pressure_mass_matrix,
-                 dst.block(1),
-                 src.block(1),
-                 mp_preconditioner);
+    dst.block(1) = 0.0;
+    cg.solve(pressure_mass_matrix,
+             dst.block(1),
+             src.block(1),
+             mp_preconditioner);
 
-        dst.block(1) *= -(viscosity + gamma);
-    }
+    dst.block(1) *= -(viscosity + gamma);
 
-    {
-        stokes_matrix.block(0, 1).vmult(utmp, dst.block(1));
-        utmp *= -1.0;
-        utmp += src.block(0);
-    }
+    stokes_matrix.block(0, 1).vmult(utmp, dst.block(1));
+    utmp *= -1.0;
+    utmp += src.block(0);
+
 
     A_inverse.vmult(dst.block(0), utmp);
 }
@@ -101,12 +98,12 @@ class NavierStokes : public CommonCFD<dim>
     BlockSparsityPattern sparsity_pattern;
     SparsityPattern      pressure_sparsity_pattern;
 
-    TrilinosWrappers::MPI::BlockVector updated_solution;
+    TrilinosWrappers::MPI::BlockVector old_solution;
     TrilinosWrappers::MPI::BlockVector newton_update;
 
     TrilinosWrappers::BlockSparseMatrix system_matrix;
     TrilinosWrappers::SparseMatrix      pressure_mass_matrix;
-    double                              gamma = 0.5;
+    double                              gamma = 1.0;
 
     void
     setup_constraints();
@@ -126,29 +123,37 @@ class NavierStokes : public CommonCFD<dim>
                        const unsigned int           dofs_per_cell,
                        FullMatrix<double>          &local_matrix);
 
-    void
-    build_local_rhs(std::vector<double> &div_phi_u,
-
-                    std::vector<Tensor<2, dim>> &grad_phi_u,
-                    std::vector<double>         &phi_p,
-                    std::vector<Tensor<1, dim>> &phi_u,
-                    Tensor<1, dim>              &velocity_values,
-                    Tensor<2, dim>              &velocity_gradients,
-                    double                       pressure_value,
-                    double                       JxW,
-                    const unsigned int           dofs_per_cell,
-                    Vector<double>              &local_rhs);
+    double
+    compute_residual();
 
     void
-    assemble(const bool initial_step, const bool assemble_matrix);
+    compute_local_residual(std::vector<double>         &div_phi_u,
+                           std::vector<Tensor<2, dim>> &grad_phi_u,
+                           std::vector<double>         &phi_p,
+                           std::vector<Tensor<1, dim>> &phi_u,
+                           Tensor<1, dim>              &velocity_values,
+                           Tensor<2, dim>              &velocity_gradients,
+                           double                       pressure_value,
+                           double                       JxW,
+                           const unsigned int           dofs_per_cell,
+                           Vector<double>              &local_rhs);
+
+    void
+    assemble(bool initial_guess);
+
     unsigned int
-    solve(const bool initial_step);
+    solve(TrilinosWrappers::MPI::BlockVector &solution);
 
     void
     newton_iteration(const double tolerance, const unsigned int max_iterations);
-    void
-    assemble_rhs(const bool initial_step);
 
     void
-    assemble_system(const bool initial_step);
+    compute_initial_guess(TrilinosWrappers::MPI::BlockVector &solution);
+    void
+    build_local_matrix_initial_guess(std::vector<Tensor<2, dim>> &grad_phi_u,
+                                     std::vector<double>         &div_phi_u,
+                                     std::vector<double>         &phi_p,
+                                     double                       JxW,
+                                     const unsigned int           dofs_per_cell,
+                                     FullMatrix<double>          &local_matrix);
 };

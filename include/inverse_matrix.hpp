@@ -1,3 +1,4 @@
+#pragma once
 #include <deal.II/base/smartpointer.h>
 
 #include <deal.II/lac/solver_cg.h>

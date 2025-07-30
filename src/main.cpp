@@ -7,7 +7,6 @@ main(int argc, char *argv[])
     Parameters                       params;
 
     std::string parameter_file;
-    ;
     if (argc == 2)
         parameter_file = argv[1];
     else
