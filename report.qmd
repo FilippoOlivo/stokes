@@ -1,7 +1,7 @@
 ---
 title: "Topics in Computational Fluid Dynamics - Exam"
 author: "Filippo Olivo"
-date: "July 2025"
+date: "30 July 2025"
 bibliography: bibliography.bib
 format:
   pdf:
@@ -100,9 +100,11 @@ V = [H^1(\Omega)]^d \,\, \text{ and } \,\, Q = L^2(\Omega)
 $$
 where $H^1(\Omega)$ is the Sobolev space, which includes all functions whose first derivatives are square integrable, while $L^2(\Omega)$ is the space of square-integrable functions.
 
-For semplicity consider:
+Consider now the two coercive forms:
 $$
-a: V\times V \rightarrow \mathbb{R} , \,\, a(\vec{u}, \vec{v} )= \int_\Omega \nu \nabla \vec{u} : \nabla \vec{v} \\
+a: V\times V \rightarrow \mathbb{R} , \,\, a(\vec{u}, \vec{v} )= \int_\Omega \nu \nabla \vec{u} : \nabla \vec{v}
+$$
+$$
 b V\times Q \rightarrow \mathbb{R} , \,\, b(\vec{u}, \vec{q}) = \int_\Omega P\text{div}(\vec{u})
 $$
 
@@ -110,9 +112,267 @@ This formulation satisfies the Ladyzhenskaya–Babuška–Brezzi (inf-sup) condi
 
 In order to consider the finite element approximantion of the Stokes problem let consider a mesh $\tau_h$ and a subset of the tests function spaces $V_h \subset V$ and $Q_h\subset Q$. We are essentially looking for $(u_h P_h) \in V_h \times Q_h$ such that the discrete weak formulation of the problem is satisfied:
 $$
+\begin{cases}
 a(\vec{u_h}, \vec{v_h}) - b(\vec{v_h}, P_h) = F(\vec{v_h}) & \forall \vec{v_h}\in V_h \\
+b(\vec{u_q}, q_h) = 0 & \forall q_h \in Q_h
+\end{cases}
+$$
+
+In order to obtain a stable solution, the discrete finite element spaces must satisfy the discrete Ladyzhenskaya–Babuška–Brezzi (LBB) condition. One finite element pair that satisfies this condition is the Taylor–Hood element, which is composed of the finite element space $Q^{k+1}$ for the velocity and $Q^k$ for the pressure.
+
+In algebraic form, the discrete saddle-point system reads:
+$$
+\begin{bmatrix}
+A & B \\
+B^T & 0
+\end{bmatrix}
+\begin{bmatrix}
+U \\
+P
+\end{bmatrix}
+=
+\begin{bmatrix}
+F \\
+0
+\end{bmatrix}
+$$
+
+where:
+
+- $A_{ij} = \int_\Omega \nabla \vec{\phi}_i : \nabla \vec{\phi}_j \in \mathbb{R}^{N_u \times N_u}$ is the velocity stiffness matrix,
+- $B_{jl} = -\int_\Omega \nabla \cdot \vec{\phi}_j , \psi_l \in \mathbb{R}^{N_u \times N_p}$ is the discrete divergence matrix.
+
+Here, $\vec{\phi}_j$, with $j = 1, \dots, N_u$, are the test functions for the velocity space, and $\psi_l$, with $l = 1, \dots, N_p$, are the test functions for the pressure space. Once the system is assembled, solving it yields the discrete velocity and pressure fields.
+
+On the other hand, one may choose to use an unstable finite element pair, such as $P^1$ for both the pressure and velocity spaces. In this case, a stabilization mechanism must be introduced to obtain a meaningful and stable solution. A widely used stabilization technique is the Brezzi–Pitkäranta method, which consists of adding a pressure–pressure stabilization term to the system matrix. This term counteracts the lack of inf-sup stability by penalizing pressure oscillations. The resulting stabilized system reads:
 
 $$
+\begin{bmatrix}
+A & B \\
+B^T & C
+\end{bmatrix}
+\begin{bmatrix}
+U \\
+P
+\end{bmatrix}
+=
+\begin{bmatrix}
+F \\
+0
+\end{bmatrix}
+$$
+
+where the stabilization matrix $C \in \mathbb{R}^{N_p \times N_p}$ is defined by:
+$$
+C_{lm} = \delta \sum_{K \in \mathcal{T}_h} h_K^2 \int_K \nabla \psi_l \cdot \nabla \psi_m , dx,
+$$
+with $\delta > 0$ a user-defined stabilization parameter, $h_K$ the diameter of element $K$, and $\psi_l$, $\psi_m$ the basis functions of the pressure space.
+
+## Navier Stokes
+
+Consider now the Navier-Stokes system
+
+The main difference in this weak formulation compared to the one of Stokes problem is the presence of the non linearity term. In order to figure out a solution for this problem, we need to perform several Newton iterations to find a good approximation of the velocity and pressure fields. Specifically, in Navier Stokes, we want to apply Newton method on the function:
+$$
+\mathcal{G}(\vec{u},P) = \mathcal{L}(\vec{u}, P) - F = 0
+$$
+where 
+$$
+\mathcal{L}(\vec{u}, P) = \begin{bmatrix}
+-\nu \Delta \vec{u} + \vec{u}\cdot\nabla\vec{u}-\Delta P \\ \text{div}(\vec{u}) \end{bmatrix} \,\, \text{and} \,\, F = \begin{bmatrix} \vec{f} \\ 0 \end{bmatrix}
+$$
+For newton, given $(\vec{u}_k, P_k)$, we need to find $(\delta \vec{u}_k, \delta P_k) \in V\times Q$ such that:
+$$
+D \mathcal{G}_{\vec{u}_k, P_k} (\delta \vec{u}_k, \delta P_k) = -\mathcal{G}(\vec{u}_k, P_k)
+$$
+since $F$ is constant with respect to $\vec{u}_k, P_k$, we can write:
+$$
+D \mathcal{L}_{\vec{u}_k, P_k} (\delta \vec{u}_k, \delta P_k) =F-\mathcal{L}(\vec{u}_k, P_k)
+$$
+where
+$$
+D \mathcal{L}_{\vec{u}_k, P_k} (\delta \vec{u}_k, \delta P_k)  = \begin{bmatrix}-\nu\Delta \delta \vec{u} + \delta \vec{u} \cdot \nabla \vec{u}_k + \vec{u}_k \cdot \nabla \delta \vec{u} + \Delta \delta P \\ \text{div}(\delta \vec{u})\end{bmatrix}
+$$
+then,
+$$
+\begin{cases}
+-\nu\Delta \delta \vec{u} + \delta \vec{u} \cdot \nabla \vec{u}_k + \vec{u}_k \cdot \nabla \delta \vec{u} + \Delta \delta P = \vec{f} + \nu \Delta \vec{u}_k - \vec{u}_k \cdot \nabla \vec{u}_k - \nabla P_k \\ \text{div}(\delta \vec{u}) = \text{div}(\vec{u}_k)
+\end{cases}
+$$
+Consider now:
+$$
+\begin{cases}
+-(\nu\Delta \delta \vec{u} + \nu \Delta \vec{u}_k) + (\vec{u_k}\cdot \nabla \delta \vec{u} + \vec{u_k}\cdot \nabla\vec{u}_k) + (\delta \vec{u} \cdot \nabla \vec{u}_k + {\color{red} \vec{u}_k\cdot \nabla\vec{u}_k}) + (\Delta \delta P + \Delta P_k) = \vec{f} + {\color{red} \vec{u}_k\cdot \nabla\vec{u}_k} \\
+\text{div}(\delta \vec{u}) = - \text{div} (\vec{u}_k)
+\end{cases}
+$$
+Since $\vec{u}_{k+1} = \vec{u}_k + \delta \vec{u}$ and $P_{k+1} = P_k + \delta P$ we can write:
+$$
+\begin{cases}
+-\nu \Delta \vec{u}_{k+1} + \vec{u}_k \cdot \nabla \vec{u}_{k+1} + \vec{u}_{k+1} \cdot \nabla \vec{u}_k + \nabla P_{k+1} = \vec{f} + {\color{red} \vec{u}_k\cdot \nabla\vec{u}_k} \\
+\text{div}(\vec{u}_{k+1}) = 0
+\end{cases}
+$$
+
+Similarly to what we did for stokes, let derive the weak formulation of the problem. At each iteration of the Newton algorithm we must solve the following linear system:
+$$
+\begin{bmatrix}
+A+N(U_k)+M(U_k) & B^T \\ B & 0 
+\end{bmatrix} \begin{bmatrix}
+ U_{k+1} \\  P_{k+1}
+\end{bmatrix} = \begin{bmatrix}
+F + D{U_k} \\ 0
+\end{bmatrix}
+$$
+where:
+$$
+M_{ij} = \int_\Omega (\vec{\phi}_j \cdot \nabla)\vec{w} \cdot \vec{\phi}_i + \frac{1}{2} \int_\Omega \text{div}(\vec{\phi}_j)\vec{w}\vec{\phi}_i
+$$
+$$
+N_{ij} = \int_\Omega (\vec{w}  \cdot \nabla) \vec{\phi}_j \cdot \vec{\phi}_i + \frac{1}{2} \int_\Omega \text{div}(\vec{w})\vec{\phi}_j\vec{\phi}_i
+$$
+$$
+D_i = \int_\Omega \vec{\phi}_i (\vec{w} \cdot \nabla \vec{w})
+$$
+
+Also in the case of Navier-Stokes the discrete Ladyzhenskaya–Babuška–Brezzi condition is satisfied for Taylor-Hood finite elements.
+
+## Schur complement 
+
+For the resolution of the linear system, both in the **Stokes** and **Navier–Stokes** problems, we use the **Schur complement** strategy.
+
+Given a saddle-point system of the form:
+
+$$
+\begin{bmatrix}
+A & B^T \\
+B & S
+\end{bmatrix}
+\begin{bmatrix}
+U \\
+P
+\end{bmatrix}
+=
+\begin{bmatrix}
+F \\
+G
+\end{bmatrix}
+$$
+
+we can eliminate the velocity unknown $begin:math:text$ U $end:math:text$ by solving the first block row:
+
+$$
+A U + B^T P = F \quad \Rightarrow \quad U = A^{-1}(F - B^T P)
+$$
+
+Substituting this expression into the second block row leads to the Schur complement system:
+
+$$
+B A^{-1}(F - B^T P) + S P = G
+\quad \Rightarrow \quad
+(B A^{-1} B^T + S) P = B A^{-1} F - G
+$$
+
+We define the Schur complement matrix as:
+
+$$
+\Sigma := B A^{-1} B^T + S
+$$
+
+The reduced system for the pressure is then:
+
+$$
+\Sigma P = B A^{-1} F - G
+$$
+
+Once the pressure $ P$ has been computed, the velocity $U$ can be recovered via:
+
+$$
+U = A^{-1}(F - B^T P)
+$$
+
+
+The difficulty with the Schur complement arises in the Navier–Stokes problem, particularly at moderate Reynolds numbers, where the matrix $begin:math:text$ A $end:math:text$ becomes strongly non-symmetric due to the convection term.
+
+To improve solver robustness, we adopt an Augmented Lagrangian formulation by adding a stabilization term to the velocity block (as proposed in tutorial step-57 of the deal.II library):
+
+$$
+\tilde{A} = A + \gamma B^T W^{-1} B
+$$
+
+where:
+
+- $\gamma > 0$ is a stabilization parameter,
+- $W \approx M_p$ is the pressure mass matrix.
+
+We do not compute $\tilde{S}$ explicitly. Instead, we approximate its inverse by:
+
+$$
+\tilde{S}^{-1} \approx -(\nu + \gamma) M_p^{-1}
+$$
+
+This is cheap and effective. Once the pressure is computed using this approximation, the velocity is recovered by:
+
+$$
+u = \tilde{A}^{-1}(f - B^T p)
+$$
+
+# Problem statement
+
+The problem we want to solve is a variant of the flow past cylinder problem which involves two different cylinders. The domain we consider is a simple $2D$ rectangular domain with shape $5\times 1.5$. The cylinders have radius of $0.1$ and their centers are places in $(0.5, 1)$ and $(1.5,0.5)$. The following image represent the mesh:
+
+![Mesh](img/mesh.png){width=80%}
+
+We impose no-slip boundary condition on $\Gamma_{\text{top}}, \Gamma_{\text{bottom}} \text{ and } \Gamma_{\text{out}}$ and on the surface of the cylinders. The inlet velocity, placed imposed on $\Gamma_{\text{in}}$ has the form:
+$$
+u_{in}(y) = \frac{4}{H^2} U_{\text{max}} (Hy - y^2)
+$$
+where $H$ is the height of the mesh. In our specific setting we set $U_\text{max} = 1.0$. 
+
+Finally, in order to have a uniquely defined pressure, we imposed homogeneous Dirichlet boundary condition for pressure on $\Gamma_{\text{out}}$.
+
+# Implementation details
+
+All simulations have been implemented using the deal.II finite element library. The code is structured in a modular and object-oriented manner, with the following main classes:
+
+- `CommonCFD`: An abstract base class containing methods common to both the Stokes and Navier–Stokes solvers.
+- `BaseStokes`: An abstract base class defining shared functionality between the stable and stabilized Stokes solver implementations.
+- `StableStokes`: A concrete implementation of the Stokes solver using a stable Taylor–Hood finite element pair.
+- `StabilizedStokes`: A stabilized Stokes solver implementation using an unstable $P^k–P^k$ finite element pair together with Brezzi–Pitkäranta stabilization.
+- `NavierStokes`: The solver class for the incompressible Navier–Stokes equations.
+- `InletBoundary`: A class that defines the parabolic inflow boundary condition described in the previous section.
+
+![Class structure](img/class_structure.png){fig-cap="Boxes represent C++ classes. Bold arrows indicate inheritance (specialization). Simple arrows means that an instance of the target class is used or owned by the source class—for example." width=60%}
+
+Moreover, we employed an adaptive refiniment strategy based on Kelly Estimator.
+
+The code used to run the test is available in the repository (https://github.com/FilippoOlivo/stokes). All the classes are implemented using Trilinos Wrappers available in deal.ii in order to make the code scalable to distributed environments.
+
+# Results 
+
+In this section we discuss the results of the simulations we have made on both Stokes and Navier-Stokes problem. Specifically, this chapter will be structures in the following way:
+
+#. Stokes simulation
+#. Navier-Stokes simulation
+#. Comparison of Stokes and Navier-Stokes on low Reynolds
+
+## Stokes simulations 
+
+For the simple Stokes problem, we consider a scenario characterized by a low Reynolds number. Specifically, we set the kinematic viscosity to $\nu = 2$, which corresponds to a Reynolds number of $\text{Re} = 0.1$. This places us well within the Stokes regime, where inertial effects are negligible compared to viscous forces. The picture below shows an example of simulation with these parameters:
+
+![Stokes simulation](img/stokes_example.png){width="90%"}
+
+As we can see, the velocity field shows a symmetric pattern along the vertical axis of each cylinder, which is typical of the Stokes regime. The maximum velocity occurs in the region between the two cylinders due to flow acceleration. Regarding the pressure field, we observe a significant pressure drop, near the end of the second cylinder.
+
+As mentioned in the previous section, we have also implemented a Stokes solver which employes non-stable FEM couple $P^k-P^k$ together with Brezzi-Pitkaranta stabilization. Recalling the section ..., the parameters we need to define is $\delta$. We compare the behaviour of the FEM solution at different values of the stabilization parameter $\gamma$
+
+![$\gamma = 1$](img/bp_stokes_1.png){width="90%"}
+
+![$\gamma = 0.1$](img/bp_stokes_0.1.png){width="90%"}
+
+![$\gamma = 0.01$](img/bp_stokes_0.01.png){width="90%"}
+
+From the three images above, we can see that a small $\gamma$ leads to a spurious pressure field, indicating a violation of the inf-sup condition due to insufficient stabilization. On the other hand, a large $\gamma$ results in a pressure field that is overly smooth and reduced in magnitude. In both cases, the velocity field remains mostly accurate.
 
 # References 
 
