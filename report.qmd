@@ -3,6 +3,7 @@ title: "Topics in Computational Fluid Dynamics - Exam"
 author: "Filippo Olivo"
 date: "30 July 2025"
 bibliography: bibliography.bib
+csl: ieee.csl
 format:
   pdf:
     title-block-style: none
@@ -30,16 +31,16 @@ Stokes and Navier-Stokes are mathematical models that describe the motion of inc
     $$
     This expresses that the net volume of fluid flowing into any point is equal to the volume flowing out, preserving the total volume locally.
 
-- Momentum conservation: This accounts for the effects of internal and external forces acting on the fluid. Internal forces include viscous stresses (from fluid friction) and pressure gradients, while external forces typically involve gravity or other body forces. In Stokes equation the momentum conservation is expressed as: 
+- Momentum conservation: This accounts for the effects of internal and external forces acting on the fluid. Internal forces include viscous stresses (from fluid friction) and pressure gradients, while external forces typically involve gravity. In Stokes equation the momentum conservation is expressed as: 
     $$
     \nu \Delta u + \nabla p = f
     $$
-    where essentially the term $\nu \Delta u$ represent the linear viscous forces, while the term $\nabla p$ represent the forces caused by the pressure gradients. This first equation negletes the convective acceleration non linear terms which takes into account the internal friction caused by the velocity gradients. This is commonly responsible of compre phenomena such as vortices and turbolence. The Navier-Stokes equation is:
+    where essentially the term $\nu \Delta u$ represent the linear viscous forces, while the term $\nabla p$ represent the forces caused by the pressure gradients. This first equation negletes the convective acceleration non linear terms which takes into account the internal friction caused by the velocity gradients, responsible of complex phenomena such as vortices and turbolence. This additional terms has been introduced in Navier-Stokes equation:
     $$
     (u \cdot \nabla)u - \nu \Delta u + \nabla p = f
     $$
 
-In the context of fluid dynamics, a key dimensionless quantity is the Reynolds number, which characterizes the ratio between inertial and viscous forces in a flow. It is defined as:
+In the context of fluid dynamics, a key quantity is the Reynolds number, a dimensionless value which gives an estimation of the ration between inertial and viscous forces in the flow. It is defined as:
 $$
 \text{Re} = \frac{U L}{\nu}
 $$
@@ -47,15 +48,13 @@ where $U$ is a characteristic velocity, $L$ is a characteristic length scale (e.
 
 The Reynolds number governs the qualitative behavior of the flow. Based on its value, we can distinguish different flow regimes:
 
-- $\text{Re} \leq 5$: Viscous forces dominate, and inertial effects are negligible. The flow remains attached to the geometry with no separation, and the solutions of the Stokes and Navier–Stokes equations are nearly indistinguishable.
-- $5 < \text{Re} < 40$: The onset of steady recirculating vortices appears in the wake of obstacles such as cylinders.
-- $\text{Re} \geq 40$: More complex behaviors emerge, including vortex shedding and potentially unsteady wake dynamics.
-
-For moderate to high Reynolds numbers, although a steady-state finite element solution may still exist mathematically, it may no longer represent a physically meaningful state—since the true behavior of the system could be inherently unsteady or even chaotic. In section, we will see these phenomena from the simulations.
+- $\text{Re} \leq 5$: Viscous forces dominate, and inertial effects are negligible. The flow remains attached to the geometry with no separation, and the solutions of the Stokes and Navier–Stokes equations are almost identical.
+- $5 < \text{Re} < 40$: The onset of steady vortices appears in the wake of obstacles.
+– $\text{Re} \geq 40$: The flow becomes unsteady as more complex phenomena, such as vortex shedding, begin to emerge.
 
 # Finite element discretisation
 
-In this section we will discuss the finite element discretization for both Stokes and Navier-Stokes models separately.
+In this section we will discuss the finite element discretization for both Stokes and Navier-Stokes models separately. This section is primarily based on the book [@quarteroniValli] as well as the lecture slides provided during the course.
 
 ## Stokes
 
@@ -202,14 +201,14 @@ $$
 Consider now:
 $$
 \begin{cases}
--(\nu\Delta \delta \vec{u} + \nu \Delta \vec{u}_k) + (\vec{u_k}\cdot \nabla \delta \vec{u} + \vec{u_k}\cdot \nabla\vec{u}_k) + (\delta \vec{u} \cdot \nabla \vec{u}_k + {\color{red} \vec{u}_k\cdot \nabla\vec{u}_k}) + (\Delta \delta P + \Delta P_k) = \vec{f} + {\color{red} \vec{u}_k\cdot \nabla\vec{u}_k} \\
+-(\nu\Delta \delta \vec{u} + \nu \Delta \vec{u}_k) + (\vec{u_k}\cdot \nabla \delta \vec{u} + \vec{u_k}\cdot \nabla\vec{u}_k) + (\delta \vec{u} \cdot \nabla \vec{u}_k +  \vec{u}_k\cdot \nabla\vec{u}_k) + (\Delta \delta P + \Delta P_k) = \vec{f} + \vec{u}_k\cdot \nabla\vec{u}_k \\
 \text{div}(\delta \vec{u}) = - \text{div} (\vec{u}_k)
 \end{cases}
 $$
 Since $\vec{u}_{k+1} = \vec{u}_k + \delta \vec{u}$ and $P_{k+1} = P_k + \delta P$ we can write:
 $$
 \begin{cases}
--\nu \Delta \vec{u}_{k+1} + \vec{u}_k \cdot \nabla \vec{u}_{k+1} + \vec{u}_{k+1} \cdot \nabla \vec{u}_k + \nabla P_{k+1} = \vec{f} + {\color{red} \vec{u}_k\cdot \nabla\vec{u}_k} \\
+-\nu \Delta \vec{u}_{k+1} + \vec{u}_k \cdot \nabla \vec{u}_{k+1} + \vec{u}_{k+1} \cdot \nabla \vec{u}_k + \nabla P_{k+1} = \vec{f} + \vec{u}_k\cdot \nabla\vec{u}_k \\
 \text{div}(\vec{u}_{k+1}) = 0
 \end{cases}
 $$
@@ -239,7 +238,7 @@ Also in the case of Navier-Stokes the discrete Ladyzhenskaya–Babuška–Brezzi
 
 ## Schur complement 
 
-For the resolution of the linear system, both in the **Stokes** and **Navier–Stokes** problems, we use the **Schur complement** strategy.
+For the resolution of the linear system, both in the Stokes and Navier–Stokes problems, we use the Schur complement strategy.
 
 Given a saddle-point system of the form:
 
@@ -292,9 +291,9 @@ U = A^{-1}(F - B^T P)
 $$
 
 
-The difficulty with the Schur complement arises in the Navier–Stokes problem, particularly at moderate Reynolds numbers, where the matrix $begin:math:text$ A $end:math:text$ becomes strongly non-symmetric due to the convection term.
+The difficulty with the Schur complement arises in the Navier–Stokes problem, particularly at moderate Reynolds numbers, where the matrix $A$ becomes strongly non-symmetric due to the convection term.
 
-To improve solver robustness, we adopt an Augmented Lagrangian formulation by adding a stabilization term to the velocity block (as proposed in tutorial step-57 of the deal.II library):
+To improve solver robustness, we adopt an Augmented Lagrangian formulation by adding a stabilization term to the velocity block as proposed in [@tuto_navierstokes]:
 
 $$
 \tilde{A} = A + \gamma B^T W^{-1} B
@@ -333,7 +332,8 @@ Finally, in order to have a uniquely defined pressure, we imposed homogeneous Di
 
 # Implementation details
 
-All simulations have been implemented using the deal.II finite element library. The code is structured in a modular and object-oriented manner, with the following main classes:
+All simulations were carried out using the deal.II finite element library. The implementation is based on the official tutorials [@tuto_stokes] for the Stokes solver and [@tuto_navierstokes] for the Navier–Stokes solver. The code is structured in a modular, object-oriented fashion, with the following main classes:
+
 
 - `CommonCFD`: An abstract base class containing methods common to both the Stokes and Navier–Stokes solvers.
 - `BaseStokes`: An abstract base class defining shared functionality between the stable and stabilized Stokes solver implementations.
@@ -354,7 +354,7 @@ In this section we discuss the results of the simulations we have made on both S
 
 #. Stokes simulation
 #. Navier-Stokes simulation
-#. Comparison of Stokes and Navier-Stokes on low Reynolds
+#. Computational performance and scalability
 
 ## Stokes simulations 
 
@@ -364,15 +364,33 @@ For the simple Stokes problem, we consider a scenario characterized by a low Rey
 
 As we can see, the velocity field shows a symmetric pattern along the vertical axis of each cylinder, which is typical of the Stokes regime. The maximum velocity occurs in the region between the two cylinders due to flow acceleration. Regarding the pressure field, we observe a significant pressure drop, near the end of the second cylinder.
 
-As mentioned in the previous section, we have also implemented a Stokes solver which employes non-stable FEM couple $P^k-P^k$ together with Brezzi-Pitkaranta stabilization. Recalling the section ..., the parameters we need to define is $\delta$. We compare the behaviour of the FEM solution at different values of the stabilization parameter $\gamma$
+As mentioned in the previous section, we have also implemented a Stokes solver which employs a non-stable FEM pair $P^k$–$P^k$ together with Brezzi–Pitkäranta stabilization. Recalling the section on finite element discretization, the key parameter to define is the stabilization parameter $\delta$. 
 
-![$\gamma = 1$](img/bp_stokes_1.png){width="90%"}
+We compare the behavior of the FEM solution for different values of $\delta$. Specifically, the renderings below show the simulation results for $\delta = 1.0$, $0.1$, and $0.01$.
 
-![$\gamma = 0.1$](img/bp_stokes_0.1.png){width="90%"}
+![Brezzi-Pitkaranta stabilization](img/bp_comparison.png){width="90%"}
 
-![$\gamma = 0.01$](img/bp_stokes_0.01.png){width="90%"}
+From the three images above, we can see that a small $\delta$ leads to a spurious pressure field, indicating a violation of the inf-sup condition due to insufficient stabilization. On the other hand, a large $\delta$ results in a pressure field that is overly smooth and reduced in magnitude. In both cases, the velocity field remains mostly accurate.
 
-From the three images above, we can see that a small $\gamma$ leads to a spurious pressure field, indicating a violation of the inf-sup condition due to insufficient stabilization. On the other hand, a large $\gamma$ results in a pressure field that is overly smooth and reduced in magnitude. In both cases, the velocity field remains mostly accurate.
+## Navier-Stokes simulations
+
+In this section, we focus on the Navier–Stokes model and investigate the behavior of the flow as the Reynolds number increases. To this end, we conduct a series of simulations where the inflow velocity is held constant, while the kinematic viscosity $\nu$ is progressively reduced. The viscosity ranges from a maximum value of $2.0$—corresponding to a low Reynolds number of $0.1$—down to a minimum of $0.002$, which yields a Reynolds number of $100$. In the figure below, each row corresponds to a different simulation where $\nu$ is decreased by an order of magnitude.
+
+![Navier-Stokes at different Reynolds number](img/ns_reynolds_comparison.png){width="90%"}
+
+From the figure above, we can see that at low Reynolds numbers, the flow is steady and symmetric, with smooth velocity and high pressure. In particular, for $\text{Re} = 0.1$, the Navier–Stokes solution is almost the same as the Stokes one shown in Figure 3. As the Reynolds number increases, inertial effects become more important, leading to longer wakes and asymmetries in the flow. Moreover, while the maximum velocity stays almost the same, the pressure becomes much smaller. This shows a transition from a flow dominated by viscosity to one where inertia plays a bigger role.
+
+The following Figure shows the Line Integral Convolution (LIC) [@LIC] plot for the different simulation at the different Reynolds number. LIC is a tecnique, implemented in ParaView, commonly used to visualize vector fields such as fluid flow as in our case. 
+
+![Navier Stokes streamine at different Reynolds number](img/ns_vortex.png)
+
+From the figure above we can see that at low Reynolds number, the flow is smooth and symmetric. As the Reynolds increases, inertial effects lead to wake formation and recirculation behind the cylinders. At $\text{Re} = 100$, vortices clearly form.
+
+## Computational performance
+
+In this section we discuss the computational requirements and scalability of Stokes and Navier Stoks models. All the tests have been preformed on a Rocky Linux 8 machine with $2\times$ Intel(R) Xeon(R) Gold $6258R$ CPU @ $2.70$ GHz  with $28$ cores each and $256$ GB of RAM.
+
+As mentioned in the previous section, we implemented an adaptive mesh refinement strategy to obtain a more accurate solution. Naturally, each refinement step significantly increases the number of degrees of freedom, resulting in higher computational cost. Specifically, we perform five refinement cycles, where in each step we refine the top $30\%$ of cells with the highest estimated error (according to the Kelly error estimator) and coarsen the bottom $10\%$ of cells with the lowest estimated error. 
 
 # References 
 
