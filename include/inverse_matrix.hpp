@@ -1,6 +1,7 @@
 #pragma once
 #include <deal.II/base/smartpointer.h>
 
+#include <deal.II/lac/precondition.h>
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/trilinos_solver.h>
@@ -39,9 +40,8 @@ InverseMatrix<MatrixType, PreconditionerType>::vmult(
     const TrilinosWrappers::MPI::Vector &src) const
 {
     SolverControl solver_control(src.size(), 1e-14 * src.l2_norm());
-
     TrilinosWrappers::SolverDirect::AdditionalData data;
-    data.solver_type = "Klu"; // o "SuperLU", "MUMPS", etc.
+    data.solver_type = "Amesos_Mumps"; // o "SuperLU", "MUMPS", etc.
 
     TrilinosWrappers::SolverDirect solver(solver_control, data);
 

@@ -140,10 +140,10 @@ StabilizedStokes<dim>::assemble_system()
     this->system_matrix.compress(VectorOperation::add);
     this->system_rhs.compress(VectorOperation::add);
     this->preconditioner_matrix.compress(VectorOperation::add);
-    this->A_preconditioner = TrilinosWrappers::PreconditionAMG();
+    this->A_preconditioner = TrilinosWrappers::PreconditionChebyshev();
     this->A_preconditioner.initialize(
         this->system_matrix.block(0, 0),
-        TrilinosWrappers::PreconditionAMG::AdditionalData());
+        TrilinosWrappers::PreconditionChebyshev::AdditionalData());
 }
 
 template class StabilizedStokes<2>;

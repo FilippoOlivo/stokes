@@ -129,7 +129,6 @@ class NavierStokes : public CommonCFD<dim>
     void
     compute_local_residual(std::vector<double>         &div_phi_u,
                            std::vector<Tensor<2, dim>> &grad_phi_u,
-                           std::vector<double>         &phi_p,
                            std::vector<Tensor<1, dim>> &phi_u,
                            Tensor<1, dim>              &velocity_values,
                            Tensor<2, dim>              &velocity_gradients,

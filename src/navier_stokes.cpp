@@ -106,33 +106,18 @@ template <int dim>
 void
 NavierStokes<dim>::setup_system()
 {
-    TimerOutput::Scope timer_dofs(this->computing_timer, "setup_system");
-    {
-        this->setup_dofhandler();
-    }
-    TimerOutput::Scope timer_constraints(this->computing_timer,
-                                         "setup_dofhandler");
-    {
-        setup_constraints();
-    }
-    TimerOutput::Scope timer_matrix(this->computing_timer,
-                                    "setup_system_matrix");
-    {
-        setup_system_matrix();
-    }
+    this->setup_dofhandler();
 
-    TimerOutput::Scope timer_vectors(this->computing_timer, "setup_soltion");
-    {
-        this->relevant_solution.reinit(this->owned_partitioning,
-                                       this->relevant_partitioning,
-                                       this->mpi_communicator);
-        newton_update.reinit(this->owned_partitioning, this->mpi_communicator);
-    }
-    TimerOutput::Scope timer_rhs(this->computing_timer, "setup_system_rhs");
-    {
-        this->system_rhs.reinit(this->owned_partitioning,
-                                this->mpi_communicator);
-    }
+    setup_constraints();
+
+    setup_system_matrix();
+
+    this->relevant_solution.reinit(this->owned_partitioning,
+                                   this->relevant_partitioning,
+                                   this->mpi_communicator);
+    newton_update.reinit(this->owned_partitioning, this->mpi_communicator);
+
+    this->system_rhs.reinit(this->owned_partitioning, this->mpi_communicator);
 }
 
 template <int dim>
@@ -171,7 +156,6 @@ void
 NavierStokes<dim>::compute_local_residual(
     std::vector<double>         &div_phi_u,
     std::vector<Tensor<2, dim>> &grad_phi_u,
-    std::vector<double>         &phi_p,
     std::vector<Tensor<1, dim>> &phi_u,
     Tensor<1, dim>              &velocity_values,
     Tensor<2, dim>              &velocity_gradients,
@@ -266,7 +250,6 @@ NavierStokes<dim>::compute_residual()
                         }
                     compute_local_residual(div_phi_u,
                                            grad_phi_u,
-                                           phi_p,
                                            phi_u,
                                            velocity_values[q],
                                            velocity_gradients[q],
@@ -421,7 +404,6 @@ template <int dim>
 unsigned int
 NavierStokes<dim>::solve(TrilinosWrappers::MPI::BlockVector &solution)
 {
-    TimerOutput::Scope timer_solve(this->computing_timer, "solve");
     const AffineConstraints<double> &constraints_used = this->constraints;
 
     SolverControl solver_control(system_matrix.m(), 1e-12, true);
@@ -456,8 +438,6 @@ void
 NavierStokes<dim>::compute_initial_guess(
     TrilinosWrappers::MPI::BlockVector &solution)
 {
-    TimerOutput::Scope timer_initial_guess(this->computing_timer,
-                                           "initial_guess");
     assemble(true);
     TrilinosWrappers::PreconditionAMG A_preconditioner;
     const InverseMatrix<TrilinosWrappers::SparseMatrix,
@@ -465,20 +445,18 @@ NavierStokes<dim>::compute_initial_guess(
         A_inverse(this->system_matrix.block(0, 0), A_preconditioner);
     TrilinosWrappers::MPI::Vector tmp(this->owned_partitioning[0],
                                       this->mpi_communicator);
+    A_inverse.vmult(tmp, this->system_rhs.block(0));
 
     TrilinosWrappers::MPI::Vector schur_rhs(this->owned_partitioning[1],
                                             this->mpi_communicator);
-    A_inverse.vmult(tmp, this->system_rhs.block(0));
-
-    this->system_matrix.block(1, 0).vmult(schur_rhs, tmp);
-    schur_rhs -= this->system_rhs.block(1);
-
     SchurComplement<TrilinosWrappers::PreconditionAMG> schur_complement(
         this->system_matrix,
         A_inverse,
         this->owned_partitioning,
         this->mpi_communicator);
 
+    this->system_matrix.block(1, 0).vmult(schur_rhs, tmp);
+    schur_rhs -= this->system_rhs.block(1);
     SolverControl solver_control(solution.block(1).size(),
                                  1e-12 * schur_rhs.l2_norm());
     SolverCG<TrilinosWrappers::MPI::Vector> cg(solver_control);
@@ -516,15 +494,29 @@ NavierStokes<dim>::newton_iteration(const double       tolerance,
                         this->mpi_communicator);
     TrilinosWrappers::MPI::BlockVector initial_guess;
     initial_guess.reinit(this->owned_partitioning, this->mpi_communicator);
+
+    this->computing_timer.enter_subsection("compute_initial_guess");
     compute_initial_guess(initial_guess);
+    this->computing_timer.leave_subsection();
+
     old_solution = initial_guess;
     this->pcout << "\tInitial guess computed." << std::endl;
     while (past_residual > tolerance && line_search_n < max_iterations)
         {
+            this->computing_timer.enter_subsection("assemble");
             assemble(false);
-            unsigned int it  = solve(solution);
-            old_solution     = solution;
+            this->computing_timer.leave_subsection();
+
+            this->computing_timer.enter_subsection("solve");
+            unsigned int it;
+            it           = solve(solution);
+            old_solution = solution;
+            this->computing_timer.leave_subsection();
+
+            this->computing_timer.enter_subsection("compute_residual");
             current_residual = compute_residual();
+            this->computing_timer.leave_subsection();
+
             this->pcout << "\tLine search step " << line_search_n
                         << ": FGMRES iterations = " << it
                         << ", residual = " << current_residual << std::endl;
@@ -550,12 +542,23 @@ NavierStokes<dim>::run()
         {
             if (cycle > 0)
                 this->refine_grid();
-            setup_system();
-            newton_iteration(1e-12, 50);
-            this->output_results(cycle);
-            this->computing_timer.print_summary();
-            this->write_timer_to_csv();
             this->computing_timer.reset();
+            Timer total_timer;
+            total_timer.start();
+
+            this->computing_timer.enter_subsection("setup_system");
+            setup_system();
+            this->computing_timer.leave_subsection();
+            newton_iteration(1e-12, 50);
+
+            this->computing_timer.enter_subsection("output_results");
+            this->output_results(cycle);
+            this->computing_timer.leave_subsection();
+
+            total_timer.stop();
+            const double wall_time = total_timer.wall_time();
+            this->computing_timer.print_summary();
+            this->write_timer_to_csv(wall_time);
             this->pcout << std::endl;
         }
 }

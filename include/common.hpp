@@ -95,7 +95,7 @@ class CommonCFD
     void
     refine_grid();
     void
-    write_timer_to_csv();
+    write_timer_to_csv(const double total_time);
 };
 
 template <int dim>
@@ -161,7 +161,6 @@ template <int dim>
 void
 CommonCFD<dim>::output_results(unsigned int cycle)
 {
-    TimerOutput::Scope       timer_scope(computing_timer, "output_results");
     std::vector<std::string> solution_names(dim, "velocity");
     solution_names.emplace_back("pressure");
     std::vector<DataComponentInterpretation::DataComponentInterpretation>
@@ -192,8 +191,7 @@ template <int dim>
 void
 CommonCFD<dim>::refine_grid()
 {
-    TimerOutput::Scope timer_scope(computing_timer, "refine_grid");
-    Vector<float>      estimated_error_per_cell(triangulation.n_active_cells());
+    Vector<float> estimated_error_per_cell(triangulation.n_active_cells());
 
     const FEValuesExtractors::Scalar velocities(0);
     KellyErrorEstimator<dim>::estimate(
@@ -218,7 +216,7 @@ CommonCFD<dim>::get_solution()
 
 template <int dim>
 void
-CommonCFD<dim>::write_timer_to_csv()
+CommonCFD<dim>::write_timer_to_csv(const double total_time)
 {
     if (mpi_rank != 0)
         return; // Only the root process writes the timer data
@@ -232,15 +230,14 @@ CommonCFD<dim>::write_timer_to_csv()
         TimerOutput::OutputData::total_wall_time;
     const auto timing_data = computing_timer.get_summary_data(data_type);
 
-    // Write header only if file doesn't exist
     if (!file_exists)
         {
-            file << "MPI Size,N DOFs,";
+            file << "MPI_Size,N_DOFs,total_time,";
             for (const auto &entry : timing_data)
                 file << entry.first << ",";
             file << std::endl;
         }
-    file << mpi_size << "," << dof_handler.n_dofs() << ",";
+    file << mpi_size << "," << dof_handler.n_dofs() << "," << total_time << ",";
     for (const auto &entry : timing_data)
         file << entry.second << ",";
     file << std::endl;
