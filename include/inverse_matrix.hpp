@@ -9,42 +9,40 @@
 
 using namespace dealii;
 
-template <class MatrixType, class PreconditionerType>
+template <class MatrixType>
 class InverseMatrix : public Subscriptor
 {
   public:
-    InverseMatrix(const MatrixType         &m,
-                  const PreconditionerType &preconditioner);
+    InverseMatrix(const MatrixType &m);
 
     void
     vmult(TrilinosWrappers::MPI::Vector       &dst,
           const TrilinosWrappers::MPI::Vector &src) const;
 
   private:
-    const SmartPointer<const MatrixType>         matrix;
-    const SmartPointer<const PreconditionerType> preconditioner;
+    const SmartPointer<const MatrixType>                    matrix;
+    SolverControl                                           solver_control;
+    mutable std::shared_ptr<TrilinosWrappers::SolverDirect> solver;
 };
 
-template <class MatrixType, class PreconditionerType>
-InverseMatrix<MatrixType, PreconditionerType>::InverseMatrix(
-    const MatrixType         &m,
-    const PreconditionerType &preconditioner)
+template <class MatrixType>
+InverseMatrix<MatrixType>::InverseMatrix(const MatrixType &m)
     : matrix(&m)
-    , preconditioner(&preconditioner)
-{}
-
-template <class MatrixType, class PreconditionerType>
-void
-InverseMatrix<MatrixType, PreconditionerType>::vmult(
-    TrilinosWrappers::MPI::Vector       &dst,
-    const TrilinosWrappers::MPI::Vector &src) const
+    , solver_control(m.m(), 1e-12)
 {
-    SolverControl solver_control(src.size(), 1e-14 * src.l2_norm());
     TrilinosWrappers::SolverDirect::AdditionalData data;
-    data.solver_type = "Amesos_Mumps"; // o "SuperLU", "MUMPS", etc.
+    data.solver_type = "Amesos_Mumps";
+    solver =
+        std::make_shared<TrilinosWrappers::SolverDirect>(solver_control, data);
 
-    TrilinosWrappers::SolverDirect solver(solver_control, data);
+    solver->initialize(*matrix);
+}
 
+template <class MatrixType>
+void
+InverseMatrix<MatrixType>::vmult(TrilinosWrappers::MPI::Vector       &dst,
+                                 const TrilinosWrappers::MPI::Vector &src) const
+{
     dst = 0;
-    solver.solve(*matrix, dst, src);
+    solver->solve(dst, src);
 }

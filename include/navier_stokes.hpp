@@ -6,15 +6,13 @@ template <class PreconditionerMp>
 class BlockSchurPreconditioner : public Subscriptor
 {
   public:
-    BlockSchurPreconditioner(
-        double                                     gamma,
-        double                                     viscosity,
-        const TrilinosWrappers::BlockSparseMatrix &S,
-        const TrilinosWrappers::SparseMatrix      &P,
-        const PreconditionerMp                    &Mppreconditioner,
-        const TrilinosWrappers::PreconditionAMG   &A_inverse_ppreconditioner,
-        const MPI_Comm                            &mpi_communicator,
-        const std::vector<IndexSet>               &owned_partitioning);
+    BlockSchurPreconditioner(double gamma,
+                             double viscosity,
+                             const TrilinosWrappers::BlockSparseMatrix &S,
+                             const TrilinosWrappers::SparseMatrix      &P,
+                             const PreconditionerMp      &Mppreconditioner,
+                             const MPI_Comm              &mpi_communicator,
+                             const std::vector<IndexSet> &owned_partitioning);
 
     void
     vmult(TrilinosWrappers::MPI::BlockVector       &dst,
@@ -29,9 +27,7 @@ class BlockSchurPreconditioner : public Subscriptor
     const MPI_Comm                            &mpi_communicator;
     const std::vector<IndexSet>               &owned_partitioning;
 
-    InverseMatrix<TrilinosWrappers::SparseMatrix,
-                  TrilinosWrappers::PreconditionAMG>
-        A_inverse;
+    InverseMatrix<TrilinosWrappers::SparseMatrix> A_inverse;
 };
 
 template <class PreconditionerMp>
@@ -41,7 +37,6 @@ BlockSchurPreconditioner<PreconditionerMp>::BlockSchurPreconditioner(
     const TrilinosWrappers::BlockSparseMatrix &S,
     const TrilinosWrappers::SparseMatrix      &P,
     const PreconditionerMp                    &Mppreconditioner,
-    const TrilinosWrappers::PreconditionAMG   &A_inverse_ppreconditioner,
     const MPI_Comm                            &mpi_communicator,
     const std::vector<IndexSet>               &owned_partitioning)
     : gamma(gamma)
@@ -51,7 +46,7 @@ BlockSchurPreconditioner<PreconditionerMp>::BlockSchurPreconditioner(
     , mp_preconditioner(Mppreconditioner)
     , mpi_communicator(mpi_communicator)
     , owned_partitioning(owned_partitioning)
-    , A_inverse(stokes_matrix.block(0, 0), A_inverse_ppreconditioner)
+    , A_inverse(stokes_matrix.block(0, 0))
 {}
 
 template <class PreconditionerMp>

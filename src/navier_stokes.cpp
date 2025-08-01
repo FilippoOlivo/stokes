@@ -405,7 +405,7 @@ unsigned int
 NavierStokes<dim>::solve(TrilinosWrappers::MPI::BlockVector &solution)
 {
     const AffineConstraints<double> &constraints_used = this->constraints;
-
+    this->computing_timer.enter_subsection("initialize solver");
     SolverControl solver_control(system_matrix.m(), 1e-12, true);
 
     SolverFGMRES<TrilinosWrappers::MPI::BlockVector> gmres(solver_control);
@@ -414,22 +414,28 @@ NavierStokes<dim>::solve(TrilinosWrappers::MPI::BlockVector &solution)
         pressure_mass_matrix,
         TrilinosWrappers::PreconditionAMG::AdditionalData());
 
-    TrilinosWrappers::PreconditionAMG A_inverse_preconditioner;
-    A_inverse_preconditioner.initialize(
-        system_matrix.block(0, 0),
-        TrilinosWrappers::PreconditionAMG::AdditionalData());
+    // TrilinosWrappers::PreconditionAMG A_inverse_preconditioner;
+    // A_inverse_preconditioner.initialize(
+    //     system_matrix.block(0, 0),
+    //     TrilinosWrappers::PreconditionAMG::AdditionalData());
+    this->computing_timer.leave_subsection();
 
+    this->computing_timer.enter_subsection("initialize Schur preconditioner");
     const BlockSchurPreconditioner<TrilinosWrappers::PreconditionAMG>
         preconditioner(gamma,
                        this->params.viscosity,
                        system_matrix,
                        pressure_mass_matrix,
                        pmass_preconditioner,
-                       A_inverse_preconditioner,
+                       //    A_inverse_preconditioner,
                        this->mpi_communicator,
                        this->owned_partitioning);
+    this->computing_timer.leave_subsection();
+
+    this->computing_timer.enter_subsection("solve system");
     gmres.solve(system_matrix, solution, this->system_rhs, preconditioner);
     constraints_used.distribute(solution);
+    this->computing_timer.leave_subsection();
     return solver_control.last_step();
 }
 
@@ -439,35 +445,28 @@ NavierStokes<dim>::compute_initial_guess(
     TrilinosWrappers::MPI::BlockVector &solution)
 {
     assemble(true);
-    TrilinosWrappers::PreconditionAMG A_preconditioner;
-    const InverseMatrix<TrilinosWrappers::SparseMatrix,
-                        TrilinosWrappers::PreconditionAMG>
-        A_inverse(this->system_matrix.block(0, 0), A_preconditioner);
+    TrilinosWrappers::PreconditionAMG                   A_preconditioner;
+    const InverseMatrix<TrilinosWrappers::SparseMatrix> A_inverse(
+        this->system_matrix.block(0, 0));
     TrilinosWrappers::MPI::Vector tmp(this->owned_partitioning[0],
                                       this->mpi_communicator);
     A_inverse.vmult(tmp, this->system_rhs.block(0));
 
     TrilinosWrappers::MPI::Vector schur_rhs(this->owned_partitioning[1],
                                             this->mpi_communicator);
-    SchurComplement<TrilinosWrappers::PreconditionAMG> schur_complement(
-        this->system_matrix,
-        A_inverse,
-        this->owned_partitioning,
-        this->mpi_communicator);
+    SchurComplement               schur_complement(this->system_matrix,
+                                     A_inverse,
+                                     this->owned_partitioning,
+                                     this->mpi_communicator);
 
     this->system_matrix.block(1, 0).vmult(schur_rhs, tmp);
     schur_rhs -= this->system_rhs.block(1);
     SolverControl solver_control(solution.block(1).size(),
                                  1e-12 * schur_rhs.l2_norm());
     SolverCG<TrilinosWrappers::MPI::Vector> cg(solver_control);
-    TrilinosWrappers::PreconditionAMG       preconditioner;
-    preconditioner.initialize(
-        pressure_mass_matrix,
-        TrilinosWrappers::PreconditionAMG::AdditionalData());
 
-    InverseMatrix<TrilinosWrappers::SparseMatrix,
-                  TrilinosWrappers::PreconditionAMG>
-        m_inverse(this->pressure_mass_matrix, preconditioner);
+    InverseMatrix<TrilinosWrappers::SparseMatrix> m_inverse(
+        this->pressure_mass_matrix);
 
     cg.solve(schur_complement, solution.block(1), schur_rhs, m_inverse);
 
@@ -507,11 +506,9 @@ NavierStokes<dim>::newton_iteration(const double       tolerance,
             assemble(false);
             this->computing_timer.leave_subsection();
 
-            this->computing_timer.enter_subsection("solve");
             unsigned int it;
             it           = solve(solution);
             old_solution = solution;
-            this->computing_timer.leave_subsection();
 
             this->computing_timer.enter_subsection("compute_residual");
             current_residual = compute_residual();

@@ -12,15 +12,15 @@
 
 using namespace dealii;
 
-template <class PreconditionerType>
+// template <class PreconditionerType>
 class SchurComplement : public Subscriptor
 {
   public:
-    SchurComplement(const TrilinosWrappers::BlockSparseMatrix &system_matrix,
-                    const InverseMatrix<TrilinosWrappers::SparseMatrix,
-                                        PreconditionerType>   &A_inverse,
-                    const std::vector<IndexSet> &owned_partitioning,
-                    const MPI_Comm              &mpi_communicator);
+    SchurComplement(
+        const TrilinosWrappers::BlockSparseMatrix           &system_matrix,
+        const InverseMatrix<TrilinosWrappers::SparseMatrix> &A_inverse,
+        const std::vector<IndexSet>                         &owned_partitioning,
+        const MPI_Comm                                      &mpi_communicator);
 
     void
     vmult(TrilinosWrappers::MPI::Vector       &dst,
@@ -28,8 +28,7 @@ class SchurComplement : public Subscriptor
 
   private:
     const SmartPointer<const TrilinosWrappers::BlockSparseMatrix> system_matrix;
-    const SmartPointer<
-        const InverseMatrix<TrilinosWrappers::SparseMatrix, PreconditionerType>>
+    const SmartPointer<const InverseMatrix<TrilinosWrappers::SparseMatrix>>
         A_inverse;
 
     mutable TrilinosWrappers::MPI::Vector tmp1, tmp2;
@@ -37,13 +36,12 @@ class SchurComplement : public Subscriptor
     std::vector<IndexSet>                 owned_partitioning;
 };
 
-template <class PreconditionerType>
-SchurComplement<PreconditionerType>::SchurComplement(
-    const TrilinosWrappers::BlockSparseMatrix &system_matrix,
-    const InverseMatrix<TrilinosWrappers::SparseMatrix, PreconditionerType>
-                                &A_inverse,
-    const std::vector<IndexSet> &owned_partitioning,
-    const MPI_Comm              &mpi_communicator)
+// template <class PreconditionerType>
+inline SchurComplement::SchurComplement(
+    const TrilinosWrappers::BlockSparseMatrix           &system_matrix,
+    const InverseMatrix<TrilinosWrappers::SparseMatrix> &A_inverse,
+    const std::vector<IndexSet>                         &owned_partitioning,
+    const MPI_Comm                                      &mpi_communicator)
     : system_matrix(&system_matrix)
     , A_inverse(&A_inverse)
     , tmp1(owned_partitioning[0], mpi_communicator)
@@ -52,11 +50,10 @@ SchurComplement<PreconditionerType>::SchurComplement(
     , owned_partitioning(owned_partitioning)
 {}
 
-template <class PreconditionerType>
-void
-SchurComplement<PreconditionerType>::vmult(
-    TrilinosWrappers::MPI::Vector       &dst,
-    const TrilinosWrappers::MPI::Vector &src) const
+// template <class PreconditionerType>
+inline void
+SchurComplement::vmult(TrilinosWrappers::MPI::Vector       &dst,
+                       const TrilinosWrappers::MPI::Vector &src) const
 {
     system_matrix->block(0, 1).vmult(tmp1, src);
     A_inverse->vmult(tmp2, tmp1);

@@ -183,9 +183,8 @@ BaseStokes<dim>::solve()
 {
     TrilinosWrappers::MPI::BlockVector solution(this->owned_partitioning,
                                                 this->mpi_communicator);
-    const InverseMatrix<TrilinosWrappers::SparseMatrix,
-                        TrilinosWrappers::PreconditionChebyshev>
-        A_inverse(this->system_matrix.block(0, 0), A_preconditioner);
+    const InverseMatrix<TrilinosWrappers::SparseMatrix> A_inverse(
+        this->system_matrix.block(0, 0));
     TrilinosWrappers::MPI::Vector tmp(this->owned_partitioning[0],
                                       this->mpi_communicator);
 
@@ -198,23 +197,17 @@ BaseStokes<dim>::solve()
         this->system_matrix.block(1, 0).vmult(schur_rhs, tmp);
         schur_rhs -= this->system_rhs.block(1);
 
-        SchurComplement<TrilinosWrappers::PreconditionChebyshev>
-            schur_complement(this->system_matrix,
-                             A_inverse,
-                             this->owned_partitioning,
-                             this->mpi_communicator);
+        SchurComplement schur_complement(this->system_matrix,
+                                         A_inverse,
+                                         this->owned_partitioning,
+                                         this->mpi_communicator);
 
         SolverControl solver_control(solution.block(1).size(),
                                      1e-12 * schur_rhs.l2_norm());
         SolverCG<TrilinosWrappers::MPI::Vector> cg(solver_control);
-        TrilinosWrappers::PreconditionChebyshev preconditioner;
-        preconditioner.initialize(
-            this->preconditioner_matrix.block(1, 1),
-            TrilinosWrappers::PreconditionChebyshev::AdditionalData());
 
-        InverseMatrix<TrilinosWrappers::SparseMatrix,
-                      TrilinosWrappers::PreconditionChebyshev>
-            m_inverse(this->preconditioner_matrix.block(1, 1), preconditioner);
+        InverseMatrix<TrilinosWrappers::SparseMatrix> m_inverse(
+            this->preconditioner_matrix.block(1, 1));
 
         cg.solve(schur_complement, solution.block(1), schur_rhs, m_inverse);
 
