@@ -413,11 +413,6 @@ NavierStokes<dim>::solve(TrilinosWrappers::MPI::BlockVector &solution)
     pmass_preconditioner.initialize(
         pressure_mass_matrix,
         TrilinosWrappers::PreconditionAMG::AdditionalData());
-
-    // TrilinosWrappers::PreconditionAMG A_inverse_preconditioner;
-    // A_inverse_preconditioner.initialize(
-    //     system_matrix.block(0, 0),
-    //     TrilinosWrappers::PreconditionAMG::AdditionalData());
     this->computing_timer.leave_subsection();
 
     this->computing_timer.enter_subsection("initialize Schur preconditioner");
