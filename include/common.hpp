@@ -22,14 +22,12 @@
 #include <deal.II/grid/grid_tools.h>
 
 #include <deal.II/lac/affine_constraints.h>
-// #include <deal.II/lac/block_sparse_matrix.h>
-#include <deal.II/lac/trilinos_block_sparse_matrix.h>
-// #include <deal.II/lac/block_vector.h>
 #include <deal.II/lac/full_matrix.h>
 #include <deal.II/lac/precondition.h>
 #include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/sparse_direct.h>
 #include <deal.II/lac/sparse_ilu.h>
+#include <deal.II/lac/trilinos_block_sparse_matrix.h>
 #include <deal.II/lac/trilinos_parallel_block_vector.h>
 #include <deal.II/lac/trilinos_precondition.h>
 #include <deal.II/lac/trilinos_vector.h>
@@ -107,7 +105,11 @@ CommonCFD<dim>::CommonCFD(const Parameters &params,
     , mpi_rank(Utilities::MPI::this_mpi_process(mpi_communicator))
     , degree_p(params.degree_p)
     , degree_u(params.degree_u)
-    , triangulation(mpi_communicator)
+    , triangulation(
+          mpi_communicator
+          // Triangulation<dim>::MeshSmoothing::limit_level_difference_at_vertices,
+          // parallel::distributed::Triangulation<dim>::Settings::mesh_reconstruction_after_repartitioning
+          )
     , dof_handler(triangulation)
     , fe(FE_Q<dim>(degree_u) ^ dim, FE_Q<dim>(degree_p))
     , pcout(std::cout, Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
@@ -205,6 +207,7 @@ CommonCFD<dim>::refine_grid()
     parallel::distributed::GridRefinement::refine_and_coarsen_fixed_number(
         triangulation, estimated_error_per_cell, 0.3, 0.1);
     triangulation.execute_coarsening_and_refinement();
+    triangulation.repartition();
 }
 
 template <int dim>

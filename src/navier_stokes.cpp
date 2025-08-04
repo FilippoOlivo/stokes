@@ -45,39 +45,6 @@ NavierStokes<dim>::setup_constraints()
                                              this->constraints,
                                              this->fe.component_mask(pressure));
     this->constraints.close();
-
-    zero_constraints.clear();
-    zero_constraints.reinit(this->locally_owned_dofs,
-                            this->locally_relevant_dofs);
-    DoFTools::make_hanging_node_constraints(this->dof_handler,
-                                            zero_constraints);
-    VectorTools::interpolate_boundary_values(
-        this->dof_handler,
-        10,
-        Functions::ZeroFunction<dim>(dim + 1),
-        zero_constraints,
-        this->fe.component_mask(velocities));
-    VectorTools::interpolate_boundary_values(
-        this->dof_handler,
-        30,
-        Functions::ZeroFunction<dim>(dim + 1),
-        zero_constraints,
-        this->fe.component_mask(velocities));
-    VectorTools::interpolate_boundary_values(
-        this->dof_handler,
-        40,
-        Functions::ZeroFunction<dim>(dim + 1),
-        zero_constraints,
-        this->fe.component_mask(velocities));
-
-    VectorTools::interpolate_boundary_values(this->dof_handler,
-                                             20,
-                                             Functions::ZeroFunction<dim>(dim +
-                                                                          1),
-                                             zero_constraints,
-                                             this->fe.component_mask(pressure));
-
-    zero_constraints.close();
 }
 
 template <int dim>
@@ -219,9 +186,9 @@ NavierStokes<dim>::compute_residual()
     std::vector<double>         phi_p(dofs_per_cell);
     std::vector<Tensor<1, dim>> phi_u(dofs_per_cell);
 
-    std::vector<Tensor<1, dim>> velocity_values(dofs_per_cell);
-    std::vector<double>         pressure_values(dofs_per_cell);
-    std::vector<Tensor<2, dim>> velocity_gradients(dofs_per_cell);
+    std::vector<Tensor<1, dim>> velocity_values(n_q_points);
+    std::vector<double>         pressure_values(n_q_points);
+    std::vector<Tensor<2, dim>> velocity_gradients(n_q_points);
 
     for (const auto &cell : this->dof_handler.active_cell_iterators())
         {
@@ -259,13 +226,9 @@ NavierStokes<dim>::compute_residual()
                                            local_residual);
                 }
             cell->get_dof_indices(local_dof_indices);
-
-            const AffineConstraints<double> &constraints_used =
-                this->zero_constraints;
-
-            constraints_used.distribute_local_to_global(local_residual,
-                                                        local_dof_indices,
-                                                        residual);
+            this->constraints.distribute_local_to_global(local_residual,
+                                                         local_dof_indices,
+                                                         residual);
         }
     residual.compress(VectorOperation::add);
     return residual.l2_norm();
@@ -326,9 +289,8 @@ NavierStokes<dim>::assemble(bool initial_guess)
     std::vector<double>         phi_p(dofs_per_cell);
     std::vector<Tensor<1, dim>> phi_u(dofs_per_cell);
 
-    std::vector<Tensor<1, dim>> velocity_values(dofs_per_cell);
-    std::vector<double>         pressure_values(dofs_per_cell);
-    std::vector<Tensor<2, dim>> velocity_gradients(dofs_per_cell);
+    std::vector<Tensor<1, dim>> velocity_values(n_q_points);
+    std::vector<Tensor<2, dim>> velocity_gradients(n_q_points);
 
     for (const auto &cell : this->dof_handler.active_cell_iterators())
         {
@@ -341,8 +303,6 @@ NavierStokes<dim>::assemble(bool initial_guess)
 
             fe_values[velocities].get_function_values(old_solution,
                                                       velocity_values);
-            fe_values[pressure].get_function_values(old_solution,
-                                                    pressure_values);
             fe_values[velocities].get_function_gradients(old_solution,
                                                          velocity_gradients);
             for (unsigned int q = 0; q < n_q_points; ++q)
@@ -384,14 +344,11 @@ NavierStokes<dim>::assemble(bool initial_guess)
                 }
             cell->get_dof_indices(local_dof_indices);
 
-            const AffineConstraints<double> &constraints_used =
-                this->constraints;
-
-            constraints_used.distribute_local_to_global(local_matrix,
-                                                        local_rhs,
-                                                        local_dof_indices,
-                                                        system_matrix,
-                                                        this->system_rhs);
+            this->constraints.distribute_local_to_global(local_matrix,
+                                                         local_rhs,
+                                                         local_dof_indices,
+                                                         system_matrix,
+                                                         this->system_rhs);
         }
     system_matrix.compress(VectorOperation::add);
     this->system_rhs.compress(VectorOperation::add);
@@ -404,7 +361,6 @@ template <int dim>
 unsigned int
 NavierStokes<dim>::solve(TrilinosWrappers::MPI::BlockVector &solution)
 {
-    const AffineConstraints<double> &constraints_used = this->constraints;
     this->computing_timer.enter_subsection("initialize solver");
     SolverControl solver_control(system_matrix.m(), 1e-12, true);
 
@@ -429,7 +385,7 @@ NavierStokes<dim>::solve(TrilinosWrappers::MPI::BlockVector &solution)
 
     this->computing_timer.enter_subsection("solve system");
     gmres.solve(system_matrix, solution, this->system_rhs, preconditioner);
-    constraints_used.distribute(solution);
+    this->constraints.distribute(solution);
     this->computing_timer.leave_subsection();
     return solver_control.last_step();
 }

@@ -31,7 +31,7 @@ InverseMatrix<MatrixType>::InverseMatrix(const MatrixType &m)
     , solver_control(m.m(), 1e-12)
 {
     TrilinosWrappers::SolverDirect::AdditionalData data;
-    data.solver_type = "Amesos_Mumps";
+    data.solver_type = "Amesos_Superludist";
     solver =
         std::make_shared<TrilinosWrappers::SolverDirect>(solver_control, data);
 
