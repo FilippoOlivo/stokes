@@ -35,12 +35,12 @@ Stokes and Navier-Stokes are mathematical models that describe the motion of inc
     $$
     \nu \Delta u + \nabla p = f
     $$
-    where essentially the term $\nu \Delta u$ represent the linear viscous forces, while the term $\nabla p$ represent the forces caused by the pressure gradients. This first equation negletes the convective acceleration non linear terms which takes into account the internal friction caused by the velocity gradients, responsible of complex phenomena such as vortices and turbolence. This additional terms has been introduced in Navier-Stokes equation:
+    where essentially the term $\nu \Delta u$ represent the linear viscous forces, while the term $\nabla p$ represent the forces caused by the pressure gradients. This first equation neglects the convective acceleration non linear terms which takes into account the internal friction caused by the velocity gradients, responsible of complex phenomena such as vortices and turbulence. This additional term has been introduced in Navier-Stokes equation:
     $$
     (u \cdot \nabla)u - \nu \Delta u + \nabla p = f
     $$
 
-In the context of fluid dynamics, a key quantity is the Reynolds number, a dimensionless value which gives an estimation of the ration between inertial and viscous forces in the flow. It is defined as:
+In the context of fluid dynamics, a key quantity is the Reynolds number,a dimensionless quantity that estimates the ratio between inertial and viscous forces in the flow. It is defined as:
 $$
 \text{Re} = \frac{U L}{\nu}
 $$
@@ -58,7 +58,7 @@ In this section we will discuss the finite element discretization for both Stoke
 
 ## Stokes
 
-Let first recall the system of equation which define the Stokes model
+Let us first recall the system of equations that define the Stokes model
 
 $$
 \begin{cases}
@@ -78,7 +78,7 @@ $$
 \vec{u} = \vec{g} & \text{ on } \Gamma_D \\
 \end{cases}
 $$
-where $V$ is the velocity test function space while $Q$ is the pressure text function space.
+where $V$ is the velocity test function space while $Q$ is the pressure test function space.
 
 Consider the first equation:
 $$
@@ -109,7 +109,7 @@ $$
 
 This formulation satisfies the Ladyzhenskaya–Babuška–Brezzi (inf-sup) condition. As a result, the problem is well-posed in both the velocity and pressure spaces, and the solution pair $(\vec{u}, p)$ is unique up to an additive constant in the pressure component.
 
-In order to consider the finite element approximantion of the Stokes problem let consider a mesh $\tau_h$ and a subset of the tests function spaces $V_h \subset V$ and $Q_h\subset Q$. We are essentially looking for $(u_h P_h) \in V_h \times Q_h$ such that the discrete weak formulation of the problem is satisfied:
+To consider the finite element approximation approximation of the Stokes problem let consider a mesh $\tau_h$ and a subset of the tests function spaces $V_h \subset V$ and $Q_h\subset Q$. We are essentially looking for $(u_h P_h) \in V_h \times Q_h$ such that the discrete weak formulation of the problem is satisfied:
 $$
 \begin{cases}
 a(\vec{u_h}, \vec{v_h}) - b(\vec{v_h}, P_h) = F(\vec{v_h}) & \forall \vec{v_h}\in V_h \\
@@ -213,7 +213,7 @@ $$
 \end{cases}
 $$
 
-Similarly to what we did for stokes, let derive the weak formulation of the problem. At each iteration of the Newton algorithm we must solve the following linear system:
+Similarly to what we did for stokes, let us derive the weak formulation of the problem. At each iteration of the Newton algorithm we must solve the following linear system:
 $$
 \begin{bmatrix}
 A+N(U_k)+M(U_k) & B^T \\ B & 0 
@@ -238,7 +238,7 @@ Also in the case of Navier-Stokes the discrete Ladyzhenskaya–Babuška–Brezzi
 
 ## Schur complement 
 
-For the resolution of the linear system, both in the Stokes and Navier–Stokes problems, we use the Schur complement strategy.
+For the resolution of the linear system, both in the Stokes and Navier–Stokes problems, we adopt the Schur complement strategy.
 
 Given a saddle-point system of the form:
 
@@ -318,11 +318,11 @@ $$
 
 # Problem statement
 
-The problem we want to solve is a variant of the flow past cylinder problem which involves two different cylinders. The domain we consider is a simple $2D$ rectangular domain with shape $5\times 1.5$. The cylinders have radius of $0.1$ and their centers are places in $(0.5, 1)$ and $(1.5,0.5)$. The following image represent the mesh:
+The problem we aim to solve is a variant of the flow past a cylinder problem which involves two different cylinders. The domain we consider is a simple $2D$ rectangular domain with shape $5\times 1.5$. The cylinders have a radius of $0.1$ and their centers are placed at $(0.5, 1)$ and $(1.5,0.5)$. The following image represent the mesh:
 
 ![Mesh](img/mesh.png){width=80%}
 
-We impose no-slip boundary condition on $\Gamma_{\text{top}}, \Gamma_{\text{bottom}} \text{ and } \Gamma_{\text{out}}$ and on the surface of the cylinders. The inlet velocity, placed imposed on $\Gamma_{\text{in}}$ has the form:
+We impose no-slip boundary condition on $\Gamma_{\text{top}}, \Gamma_{\text{bottom}} \text{ and } \Gamma_{\text{out}}$ and on the surface of the cylinders. The inlet velocity, imposed on on $\Gamma_{\text{in}}$, has the form:
 $$
 u_{in}(y) = \frac{4}{H^2} U_{\text{max}} (Hy - y^2)
 $$
@@ -344,13 +344,13 @@ All simulations were carried out using the deal.II finite element library. The i
 
 ![Class structure](img/class_structure.png){fig-cap="Boxes represent C++ classes. Bold arrows indicate inheritance (specialization). Simple arrows means that an instance of the target class is used or owned by the source class—for example." width=60%}
 
-Moreover, we employed an adaptive refiniment strategy based on Kelly Estimator.
+Moreover, we employed an adaptive refinement strategy based on Kelly Estimator.
 
 The code used to run the test is available in the repository (https://github.com/FilippoOlivo/stokes). All the classes are implemented using Trilinos Wrappers available in deal.ii in order to make the code scalable to distributed environments.
 
 # Results 
 
-In this section we discuss the results of the simulations we have made on both Stokes and Navier-Stokes problem. Specifically, this chapter will be structures in the following way:
+In this section we discuss the results of the simulations we have made on both Stokes and Navier-Stokes problem. Specifically, this chapter will be structured as follows:
 
 #. Stokes simulation
 #. Navier-Stokes simulation
@@ -382,13 +382,13 @@ From the figure above, we can see that at low Reynolds numbers, the flow is stea
 
 The following Figure shows the Line Integral Convolution (LIC) [@LIC] plot for the different simulation at the different Reynolds number. LIC is a tecnique, implemented in ParaView, commonly used to visualize vector fields such as fluid flow as in our case. 
 
-![Navier Stokes streamine at different Reynolds number](img/ns_vortex.png)
+![Navier Stokes streamline at different Reynolds number](img/ns_vortex.png)
 
 From the figure above we can see that at low Reynolds number, the flow is smooth and symmetric. As the Reynolds increases, inertial effects lead to wake formation and recirculation behind the cylinders. At $\text{Re} = 100$, vortices clearly form.
 
 ## Computational performance
 
-In this section we discuss the computational requirements and scalability of Stokes and Navier Stoks models. All the tests have been preformed on a Rocky Linux 8 machine with $2\times$ Intel(R) Xeon(R) Gold $6258R$ CPU @ $2.70$ GHz  with $28$ cores each and $256$ GB of RAM.
+In this section we discuss the computational requirements and scalability of Stokes and Navier Stokes models. All the tests have been performed on a Rocky Linux 8 machine with $2\times$ Intel(R) Xeon(R) Gold $6258R$ CPU @ $2.70$ GHz  with $28$ cores each and $256$ GB of RAM.
 
 As mentioned in the previous section, we implemented an adaptive mesh refinement strategy to obtain a more accurate solution. Naturally, each refinement step significantly increases the number of degrees of freedom, resulting in higher computational cost. Specifically, we perform five refinement cycles, where in each step we refine the top $30\%$ of cells with the highest estimated error (according to the Kelly error estimator) and coarsen the bottom $10\%$ of cells with the lowest estimated error. 
 
