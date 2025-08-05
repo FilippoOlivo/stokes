@@ -395,7 +395,11 @@ void
 NavierStokes<dim>::compute_initial_guess(
     TrilinosWrappers::MPI::BlockVector &solution)
 {
+    this->computing_timer.enter_subsection("assemble initial guess");
     assemble(true);
+    this->computing_timer.leave_subsection();
+
+    this->computing_timer.enter_subsection("init initial guess solver");
     SolverControl solver_control(this->system_matrix.m(), 1e-12, true);
     SolverFGMRES<TrilinosWrappers::MPI::BlockVector> gmres(solver_control);
     TrilinosWrappers::PreconditionAMG                pmass_preconditioner;
@@ -409,14 +413,17 @@ NavierStokes<dim>::compute_initial_guess(
                        pressure_mass_matrix,
                        pmass_preconditioner,
                        this->mpi_communicator,
-                       this->owned_partitioning);
-
+                       this->owned_partitioning,
+                       0.0,
+                       true);
+    this->computing_timer.leave_subsection();
+    this->computing_timer.enter_subsection("solve initial guess");
     gmres.solve(this->system_matrix,
                 solution,
                 this->system_rhs,
                 preconditioner);
     this->constraints.distribute(solution);
-    this->relevant_solution = solution;
+    this->computing_timer.leave_subsection();
 }
 
 template <int dim>
@@ -435,9 +442,7 @@ NavierStokes<dim>::newton_iteration(const double       tolerance,
     TrilinosWrappers::MPI::BlockVector initial_guess;
     initial_guess.reinit(this->owned_partitioning, this->mpi_communicator);
 
-    this->computing_timer.enter_subsection("compute_initial_guess");
     compute_initial_guess(initial_guess);
-    this->computing_timer.leave_subsection();
 
     old_solution = initial_guess;
     this->pcout << "\tInitial guess computed." << std::endl;

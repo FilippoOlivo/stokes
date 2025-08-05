@@ -38,7 +38,8 @@ StableStokes<dim>::build_local_matrix(
                 local_matrix(i, j) +=
                     (2 * this->params.viscosity *
                          (symgrad_phi_u[i] * symgrad_phi_u[j]) -
-                     div_phi_u[i] * phi_p[j] - phi_p[i] * div_phi_u[j] + phi_p[i]*phi_p[j]) *
+                     div_phi_u[i] * phi_p[j] - phi_p[i] * div_phi_u[j] +
+                     phi_p[i] * phi_p[j]) *
                     JxW;
                 local_matrix(j, i) = local_matrix(i, j); // Ensure symmetry
             }
@@ -66,8 +67,7 @@ StableStokes<dim>::assemble_system()
 
     // Store the local contributions
     FullMatrix<double> local_matrix(dofs_per_cell, dofs_per_cell);
-    FullMatrix<double> local_pressure_matrix(dofs_per_cell,
-                                            dofs_per_cell);
+    FullMatrix<double> local_pressure_matrix(dofs_per_cell, dofs_per_cell);
     Vector<double>     local_rhs(dofs_per_cell);
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
@@ -86,9 +86,9 @@ StableStokes<dim>::assemble_system()
                 continue; // Skip artificial cells
             fe_values.reinit(cell);
 
-            local_matrix                = 0;
+            local_matrix = 0;
             // local_preconditioner_matrix = 0;
-            local_rhs                   = 0;
+            local_rhs = 0;
             for (unsigned int q = 0; q < n_q_points; ++q)
                 {
                     // Get symmetric gradient, divergence, and values of
@@ -114,9 +114,9 @@ StableStokes<dim>::assemble_system()
                                 local_pressure_matrix(i, j) +=
                                     phi_p[i] * phi_p[j] * fe_values.JxW(q);
                                 local_pressure_matrix(j, i) =
-                                    local_pressure_matrix(i, j); // Ensure symmetry
+                                    local_pressure_matrix(i,
+                                                          j); // Ensure symmetry
                             }
-                    
                 }
             // Distribute local contributions to global system matrix and rhs
             cell->get_dof_indices(local_dof_indices);
