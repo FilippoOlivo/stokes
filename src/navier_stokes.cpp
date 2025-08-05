@@ -373,14 +373,14 @@ NavierStokes<dim>::solve(TrilinosWrappers::MPI::BlockVector &solution)
 
     this->computing_timer.enter_subsection("initialize Schur preconditioner");
     const BlockSchurPreconditioner<TrilinosWrappers::PreconditionAMG>
-        preconditioner(gamma,
-                       this->params.viscosity,
+        preconditioner(this->params.viscosity,
                        system_matrix,
                        pressure_mass_matrix,
                        pmass_preconditioner,
-                       //    A_inverse_preconditioner,
                        this->mpi_communicator,
-                       this->owned_partitioning);
+                       this->owned_partitioning,
+                       gamma,
+                       true);
     this->computing_timer.leave_subsection();
 
     this->computing_timer.enter_subsection("solve system");
@@ -396,37 +396,27 @@ NavierStokes<dim>::compute_initial_guess(
     TrilinosWrappers::MPI::BlockVector &solution)
 {
     assemble(true);
-    TrilinosWrappers::PreconditionAMG                   A_preconditioner;
-    const InverseMatrix<TrilinosWrappers::SparseMatrix> A_inverse(
-        this->system_matrix.block(0, 0));
-    TrilinosWrappers::MPI::Vector tmp(this->owned_partitioning[0],
-                                      this->mpi_communicator);
-    A_inverse.vmult(tmp, this->system_rhs.block(0));
+    SolverControl solver_control(this->system_matrix.m(), 1e-12, true);
+    SolverFGMRES<TrilinosWrappers::MPI::BlockVector> gmres(solver_control);
+    TrilinosWrappers::PreconditionAMG                pmass_preconditioner;
+    pmass_preconditioner.initialize(
+        pressure_mass_matrix,
+        TrilinosWrappers::PreconditionAMG::AdditionalData());
 
-    TrilinosWrappers::MPI::Vector schur_rhs(this->owned_partitioning[1],
-                                            this->mpi_communicator);
-    SchurComplement               schur_complement(this->system_matrix,
-                                     A_inverse,
-                                     this->owned_partitioning,
-                                     this->mpi_communicator);
+    const BlockSchurPreconditioner<TrilinosWrappers::PreconditionAMG>
+        preconditioner(this->params.viscosity,
+                       this->system_matrix,
+                       pressure_mass_matrix,
+                       pmass_preconditioner,
+                       this->mpi_communicator,
+                       this->owned_partitioning);
 
-    this->system_matrix.block(1, 0).vmult(schur_rhs, tmp);
-    schur_rhs -= this->system_rhs.block(1);
-    SolverControl solver_control(solution.block(1).size(),
-                                 1e-12 * schur_rhs.l2_norm());
-    SolverCG<TrilinosWrappers::MPI::Vector> cg(solver_control);
-
-    InverseMatrix<TrilinosWrappers::SparseMatrix> m_inverse(
-        this->pressure_mass_matrix);
-
-    cg.solve(schur_complement, solution.block(1), schur_rhs, m_inverse);
-
+    gmres.solve(this->system_matrix,
+                solution,
+                this->system_rhs,
+                preconditioner);
     this->constraints.distribute(solution);
-    this->system_matrix.block(0, 1).vmult(tmp, solution.block(1));
-    tmp *= -1;
-    tmp += this->system_rhs.block(0);
-    A_inverse.vmult(solution.block(0), tmp);
-    this->constraints.distribute(solution);
+    this->relevant_solution = solution;
 }
 
 template <int dim>
@@ -451,6 +441,7 @@ NavierStokes<dim>::newton_iteration(const double       tolerance,
 
     old_solution = initial_guess;
     this->pcout << "\tInitial guess computed." << std::endl;
+    n_it = 0;
     while (past_residual > tolerance && line_search_n < max_iterations)
         {
             this->computing_timer.enter_subsection("assemble");
@@ -477,7 +468,9 @@ NavierStokes<dim>::newton_iteration(const double       tolerance,
                     break;
                 }
             past_residual = current_residual;
+            ++n_it;
         }
+    ++n_it;
     this->relevant_solution = old_solution;
 }
 
@@ -506,7 +499,7 @@ NavierStokes<dim>::run()
             total_timer.stop();
             const double wall_time = total_timer.wall_time();
             this->computing_timer.print_summary();
-            this->write_timer_to_csv(wall_time);
+            this->write_timer_to_csv(wall_time, n_it);
             this->pcout << std::endl;
         }
 }

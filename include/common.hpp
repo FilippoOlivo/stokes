@@ -1,3 +1,4 @@
+#pragma once
 #include <deal.II/base/config.h>
 
 #include <deal.II/base/conditional_ostream.h>
@@ -23,10 +24,6 @@
 
 #include <deal.II/lac/affine_constraints.h>
 #include <deal.II/lac/full_matrix.h>
-#include <deal.II/lac/precondition.h>
-#include <deal.II/lac/solver_gmres.h>
-#include <deal.II/lac/sparse_direct.h>
-#include <deal.II/lac/sparse_ilu.h>
 #include <deal.II/lac/trilinos_block_sparse_matrix.h>
 #include <deal.II/lac/trilinos_parallel_block_vector.h>
 #include <deal.II/lac/trilinos_precondition.h>
@@ -93,7 +90,7 @@ class CommonCFD
     void
     refine_grid();
     void
-    write_timer_to_csv(const double total_time);
+    write_timer_to_csv(const double total_time, unsigned int n_it = 0);
 };
 
 template <int dim>
@@ -219,7 +216,7 @@ CommonCFD<dim>::get_solution()
 
 template <int dim>
 void
-CommonCFD<dim>::write_timer_to_csv(const double total_time)
+CommonCFD<dim>::write_timer_to_csv(const double total_time, unsigned int n_it)
 {
     if (mpi_rank != 0)
         return; // Only the root process writes the timer data
@@ -238,10 +235,11 @@ CommonCFD<dim>::write_timer_to_csv(const double total_time)
             file << "MPI_Size,N_DOFs,total_time,";
             for (const auto &entry : timing_data)
                 file << entry.first << ",";
+            file << "n_it" << std::endl;
             file << std::endl;
         }
     file << mpi_size << "," << dof_handler.n_dofs() << "," << total_time << ",";
     for (const auto &entry : timing_data)
         file << entry.second << ",";
-    file << std::endl;
+    file << n_it << std::endl;
 }

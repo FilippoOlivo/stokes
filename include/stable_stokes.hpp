@@ -1,3 +1,4 @@
+#pragma once
 #include "base_stokes.hpp"
 
 template <int dim>

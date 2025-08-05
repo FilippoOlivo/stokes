@@ -4,16 +4,14 @@ template <int dim>
 void
 StabilizedStokes<dim>::setup_system_matrix()
 {
+    this->pressure_mass_matrix.clear();
     this->system_matrix.clear();
     // Initialize the sparsity pattern and system matrix
-    Table<2, DoFTools::Coupling> coupling(dim + 1, dim + 1);
-    for (unsigned int c = 0; c < dim + 1; ++c)
-        for (unsigned int d = 0; d < dim + 1; ++d)
-            coupling[c][d] = DoFTools::always;
-
     BlockDynamicSparsityPattern dsp(this->relevant_partitioning);
-    DoFTools::make_sparsity_pattern(
-        this->dof_handler, coupling, dsp, this->constraints, false);
+    DoFTools::make_sparsity_pattern(this->dof_handler,
+                                    dsp,
+                                    this->constraints,
+                                    false);
     SparsityTools::distribute_sparsity_pattern(dsp,
                                                this->locally_owned_dofs,
                                                this->mpi_communicator,
@@ -53,9 +51,10 @@ template <int dim>
 void
 StabilizedStokes<dim>::assemble_system()
 {
-    TimerOutput::Scope timer(this->computing_timer, "assemble_system");
     this->system_matrix = 0;
     this->system_rhs    = 0;
+    this->pressure_mass_matrix.reinit(this->sparsity_pattern.block(1, 1));
+    this->pressure_mass_matrix = 0;
 
     // Initialize quadrature formula and FEValues object
     const QGauss<dim> quadrature_formula(this->degree_p + 2);
@@ -70,8 +69,8 @@ StabilizedStokes<dim>::assemble_system()
 
     // Store the local contributions
     FullMatrix<double> local_matrix(dofs_per_cell, dofs_per_cell);
-    FullMatrix<double> local_preconditioner_matrix(dofs_per_cell,
-                                                   dofs_per_cell);
+    FullMatrix<double> local_pressure_matrix(dofs_per_cell,
+                                            dofs_per_cell);
     Vector<double>     local_rhs(dofs_per_cell);
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
@@ -84,15 +83,14 @@ StabilizedStokes<dim>::assemble_system()
     std::vector<Tensor<1, dim>>          grad_phi_p(dofs_per_cell);
     std::vector<double>                  phi_p(dofs_per_cell);
 
-
     for (const auto &cell : this->dof_handler.active_cell_iterators())
         {
             if (cell->is_locally_owned() == false)
-                continue;
+                continue; // Skip artificial cells
             fe_values.reinit(cell);
 
             local_matrix                = 0;
-            local_preconditioner_matrix = 0;
+            local_pressure_matrix       = 0;
             local_rhs                   = 0;
             double h_k                  = cell->diameter();
             double h_k_squared          = h_k * h_k;
@@ -109,7 +107,6 @@ StabilizedStokes<dim>::assemble_system()
                             grad_phi_p[k] = fe_values[pressure].gradient(k, q);
                             phi_p[k]      = fe_values[pressure].value(k, q);
                         }
-
                     build_local_matrix(symgrad_phi_u,
                                        div_phi_u,
                                        grad_phi_p,
@@ -118,11 +115,15 @@ StabilizedStokes<dim>::assemble_system()
                                        dofs_per_cell,
                                        local_matrix,
                                        h_k_squared);
-                    this->build_local_preconditioner_matrix(
-                        phi_p,
-                        fe_values.JxW(q),
-                        dofs_per_cell,
-                        local_preconditioner_matrix);
+                    for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                        for (unsigned int j = 0; j <= i; ++j)
+                            {
+                                local_pressure_matrix(i, j) +=
+                                    phi_p[i] * phi_p[j] * fe_values.JxW(q);
+                                local_pressure_matrix(j, i) =
+                                    local_pressure_matrix(i, j); // Ensure symmetry
+                            }
+                    
                 }
             // Distribute local contributions to global system matrix and rhs
             cell->get_dof_indices(local_dof_indices);
@@ -132,18 +133,13 @@ StabilizedStokes<dim>::assemble_system()
                                                          this->system_matrix,
                                                          this->system_rhs);
             this->constraints.distribute_local_to_global(
-                local_preconditioner_matrix,
+                local_pressure_matrix,
                 local_dof_indices,
-                this->preconditioner_matrix);
+                this->pressure_mass_matrix);
         }
     // Initialize the preconditioner
     this->system_matrix.compress(VectorOperation::add);
     this->system_rhs.compress(VectorOperation::add);
-    this->preconditioner_matrix.compress(VectorOperation::add);
-    this->A_preconditioner = TrilinosWrappers::PreconditionChebyshev();
-    this->A_preconditioner.initialize(
-        this->system_matrix.block(0, 0),
-        TrilinosWrappers::PreconditionChebyshev::AdditionalData());
 }
 
 template class StabilizedStokes<2>;
