@@ -399,7 +399,12 @@ To study the scalability of the code in a more detailed way we decided to split 
 - **Residual computation**: time taken to compute the residual at each Netwton iteration. 
 - **Solve**: time taken to solve the linear system.
 
-We consider the speed-up for solving a the Navier-Stokes problem with $300000$ degrees of freedom and $15$ Newton iterations. The figure below graphically represent the different speed-up values:
+We focus on two types of scalability:
+
+- **Strong scalability**: For a fixed problem size, we measure how the computational time changes as the number of processors increases.
+- **Weak scalability**: For a fixed number of processors, we analyze how the computational time evolves as the problem size grows. In our case, the problem size is increased by adaptively refining the mesh, which increases the number of degrees of freedom.
+
+We consider the speed-up for solving a the Navier-Stokes problem with $300000$ degrees of freedom and $5$ Newton iterations (this is just for scalability testing purposed).
 
 
 We consider the speed-up achieved when solving the Navier–Stokes problem with $300{,}000$ degrees of freedom and $15$ Newton iterations. The figure below shows the speed-up values for different components of the algorithm as the number of processors increases. Overall, we observe a modest speed-up, reaching a maximum value of around $10$ when using $32$ processors. As expected, the components that benefit the most from parallelization are the assembly and residual computation. These parts involve relatively little inter-processor communication and are also the most computationally intensive in the serial version of the program. In contrast, the solving phase and Schur complement initialization exhibit limited speed-up. This is likely due to the significant communication and memory overhead associated with these steps, which limits their scalability.
