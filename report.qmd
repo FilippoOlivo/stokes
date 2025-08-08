@@ -392,6 +392,18 @@ In this section we discuss the computational requirements and scalability of Sto
 
 As mentioned in the previous section, we implemented an adaptive mesh refinement strategy to obtain a more accurate solution. Naturally, each refinement step significantly increases the number of degrees of freedom, resulting in higher computational cost. Specifically, we perform five refinement cycles, where in each step we refine the top $30\%$ of cells with the highest estimated error (according to the Kelly error estimator) and coarsen the bottom $10\%$ of cells with the lowest estimated error. 
 
+To study the scalability of the code in a more detailed way we decided to split logically split in the following sections and compute the separate speedup for each of them:
+
+- **Initialize Schur complement**: initialization of the direct solver inside the Schur complement class which will compute the inverse of the pressure-pressure matrix.
+- **Assemble**: assembling of the system matrix and the right hand side. 
+- **Residual computation**: time taken to compute the residual at each Netwton iteration. 
+- **Solve**: time taken to solve the linear system.
+
+We consider the speed-up for solving a the Navier-Stokes problem with $300000$ degrees of freedom and $15$ Newton iterations. The figure below graphically represent the different speed-up values:
+
+
+We consider the speed-up achieved when solving the Navier–Stokes problem with $300{,}000$ degrees of freedom and $15$ Newton iterations. The figure below shows the speed-up values for different components of the algorithm as the number of processors increases. Overall, we observe a modest speed-up, reaching a maximum value of around $10$ when using $32$ processors. As expected, the components that benefit the most from parallelization are the assembly and residual computation. These parts involve relatively little inter-processor communication and are also the most computationally intensive in the serial version of the program. In contrast, the solving phase and Schur complement initialization exhibit limited speed-up. This is likely due to the significant communication and memory overhead associated with these steps, which limits their scalability.
+
 # References 
 
 ::: {#refs}
