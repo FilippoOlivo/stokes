@@ -415,7 +415,7 @@ NavierStokes<dim>::compute_initial_guess(
                        this->mpi_communicator,
                        this->owned_partitioning,
                        0.0,
-                       true);
+                       false);
     this->computing_timer.leave_subsection();
     this->computing_timer.enter_subsection("solve initial guess");
     gmres.solve(this->system_matrix,
@@ -495,7 +495,7 @@ NavierStokes<dim>::run()
             this->computing_timer.enter_subsection("setup_system");
             setup_system();
             this->computing_timer.leave_subsection();
-            newton_iteration(1e-12, 50);
+            newton_iteration(1e-12, 5);
 
             this->computing_timer.enter_subsection("output_results");
             this->output_results(cycle);

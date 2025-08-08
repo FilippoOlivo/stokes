@@ -24,7 +24,7 @@ class NavierStokes : public CommonCFD<dim>
 
     TrilinosWrappers::BlockSparseMatrix system_matrix;
     TrilinosWrappers::SparseMatrix      pressure_mass_matrix;
-    double                              gamma = 1.0;
+    double                              gamma = 100.0;
     unsigned int                        n_it;
 
     void

@@ -78,7 +78,6 @@ BlockSchurPreconditioner<PreconditionerMp>::vmult(
              dst.block(1),
              src.block(1),
              mp_preconditioner);
-
     dst.block(1) *= -(viscosity + gamma);
 
     stokes_matrix.block(0, 1).vmult(utmp, dst.block(1));
@@ -86,7 +85,6 @@ BlockSchurPreconditioner<PreconditionerMp>::vmult(
     utmp += src.block(0);
 
     A_inverse.vmult(dst.block(0), utmp);
-
     TrilinosWrappers::MPI::Vector tmp_mass(owned_partitioning[1],
                                            mpi_communicator);
     stokes_matrix.block(1, 1).vmult(tmp_mass, src.block(1));
