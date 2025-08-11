@@ -1,7 +1,8 @@
 ---
 title: "Topics in Computational Fluid Dynamics - Exam"
 author: "Filippo Olivo"
-date: "30 July 2025"
+date: "11 August 2025"
+date-format: "D MMMM YYYY"
 bibliography: bibliography.bib
 csl: ieee.csl
 format:
@@ -13,7 +14,7 @@ format:
     number-sections: true
 ---
 
-This report contains the results valid as exam for the course of "Topics in Computational Fluid Dynamics". The goal of the project is to program and test a parallelize version of Stokes and Navier Stokes equations. All the simulations have been programmed using deal.II v9.6.2 library [@dealii]. The structure of this report will be the following on:
+This report contains the results valid as exam for the course of "Topics in Computational Fluid Dynamics". The goal of the project is to program and test a parallelized version of Stokes and Navier Stokes equations. All the simulations have been programmed using deal.II v$9.7.0$ library [@dealii]. The structure of this report will be the following:
 
 #. Brief introduction to Stokes and Navier Stokes equations
 #. Finite element discretization
@@ -23,24 +24,24 @@ This report contains the results valid as exam for the course of "Topics in Comp
 
 # Stokes and Navier-Stokes equations
 
-Stokes and Navier-Stokes are mathematical models that describe the motion of incompressible, viscous fluids, whether in liquid or gas form. These models govern how the fluid’s pressure and velocity fields evolve over time within a given domain. They are fundamentally based on two conservation principles:
+Stokes and Navier-Stokes are mathematical models that describe the motion of incompressible, viscous fluids, in both liquid and gaseous form. These models govern how the fluid’s pressure and velocity fields evolve over time within a given domain. They are fundamentally based on two conservation principles:
 
 - Mass conservation: This principle ensures that fluid cannot spontaneously appear or disappear. For incompressible flows, it leads to the condition:
     $$
     \nabla \cdot u = 0
     $$
-    This expresses that the net volume of fluid flowing into any point is equal to the volume flowing out, preserving the total volume locally.
+    This expresses that the net volume of fluid flowing into any point is equal to the volume flowing out, thus preserving volume locally.
 
-- Momentum conservation: This accounts for the effects of internal and external forces acting on the fluid. Internal forces include viscous stresses (from fluid friction) and pressure gradients, while external forces typically involve gravity. In Stokes equation the momentum conservation is expressed as: 
+- Momentum conservation: This accounts for the effects of both internal and external forces acting on the fluid. Internal forces include viscous stresses (from fluid friction) and pressure gradients, while external forces typically consist of body forces such as gravity. In the Stokes equations, momentum conservation is expressed as:
     $$
-    \nu \Delta u + \nabla p = f
+    -\nu \Delta u + \nabla P = f
     $$
-    where essentially the term $\nu \Delta u$ represent the linear viscous forces, while the term $\nabla p$ represent the forces caused by the pressure gradients. This first equation neglects the convective acceleration non linear terms which takes into account the internal friction caused by the velocity gradients, responsible of complex phenomena such as vortices and turbulence. This additional term has been introduced in Navier-Stokes equation:
+    where essentially the term $\nu \Delta u$ represents the linear viscous forces, while the term $\nabla P$ represents the forces caused by the pressure gradients. This formulation neglects the nonlinear convective acceleration term $(u \cdot \nabla)u$, which is small when inertial effects are negligible. This additional term has been included in the Navier–Stokes equations:
     $$
     (u \cdot \nabla)u - \nu \Delta u + \nabla p = f
     $$
 
-In the context of fluid dynamics, a key quantity is the Reynolds number,a dimensionless quantity that estimates the ratio between inertial and viscous forces in the flow. It is defined as:
+In the context of fluid dynamics, a key quantity is the Reynolds number, a dimensionless quantity that estimates the ratio of inertial to viscous forces in the flow. It is defined as:
 $$
 \text{Re} = \frac{U L}{\nu}
 $$
@@ -49,16 +50,16 @@ where $U$ is a characteristic velocity, $L$ is a characteristic length scale (e.
 The Reynolds number governs the qualitative behavior of the flow. Based on its value, we can distinguish different flow regimes:
 
 - $\text{Re} \leq 5$: Viscous forces dominate, and inertial effects are negligible. The flow remains attached to the geometry with no separation, and the solutions of the Stokes and Navier–Stokes equations are almost identical.
-- $5 < \text{Re} < 40$: The onset of steady vortices appears in the wake of obstacles.
-– $\text{Re} \geq 40$: The flow becomes unsteady as more complex phenomena, such as vortex shedding, begin to emerge.
+- $5 < \text{Re} < 40$: Steady recirculating vortices develop in the wake of obstacles.
+– $\text{Re} \geq 40$: The flow becomes unsteady as phenomena such as periodic vortex shedding arise.
 
 # Finite element discretisation
 
-In this section we will discuss the finite element discretization for both Stokes and Navier-Stokes models separately. This section is primarily based on the book [@quarteroniValli] as well as the lecture slides provided during the course.
+In this section, we discuss the finite element discretization for both Stokes and Navier-Stokes models separately. This section is primarily based on the book [@quarteroniValli] as well as the lecture slides provided during the course.
 
 ## Stokes
 
-Let us first recall the system of equations that define the Stokes model
+We begin by recalling the system of equations defining the Stokes model
 
 $$
 \begin{cases}
@@ -69,16 +70,16 @@ $$
 \end{cases}
 $$
 
-Given this formulation, we can derive the weak formulation of the Stokes problem by considering the following system:
+Given this formulation, we derive the weak formulation of the Stokes problem by considering the following system:
 
 $$
 \begin{cases}
-\int_\Omega (-\nu \Delta \vec{u} + \nabla P) \vec{v} = \int_\Omega \vec{f} \vec{v} & \forall \vec{v}\in V \\
+\int_\Omega (-\nu \Delta \vec{u} + \nabla P) \vec{v} = \int_\Omega \vec{f} \cdot \vec{v} & \forall \vec{v}\in V \\
 \int_\Omega \text{div}( \vec{u} ) q = 0 & \forall q \in Q \\
 \vec{u} = \vec{g} & \text{ on } \Gamma_D \\
 \end{cases}
 $$
-where $V$ is the velocity test function space while $Q$ is the pressure test function space.
+where $V$ is the velocity test function space and $Q$ the pressure test function space.
 
 Consider the first equation:
 $$
@@ -97,19 +98,20 @@ Given the weak formulation we can determine the following function spaces:
 $$
 V = [H^1(\Omega)]^d \,\, \text{ and } \,\, Q = L^2(\Omega)
 $$
-where $H^1(\Omega)$ is the Sobolev space, which includes all functions whose first derivatives are square integrable, while $L^2(\Omega)$ is the space of square-integrable functions.
+where $H^1(\Omega)$ is the Sobolev space of functions with square-integrable first derivatives, while $L^2(\Omega)$ is the space of square-integrable functions.
 
 Consider now the two coercive forms:
 $$
 a: V\times V \rightarrow \mathbb{R} , \,\, a(\vec{u}, \vec{v} )= \int_\Omega \nu \nabla \vec{u} : \nabla \vec{v}
 $$
 $$
-b V\times Q \rightarrow \mathbb{R} , \,\, b(\vec{u}, \vec{q}) = \int_\Omega P\text{div}(\vec{u})
+b: V \times Q \to \mathbb{R},
+\quad b(\vec{v}, q) = \int_\Omega \text{div} (\vec{v}) P .
 $$
 
 This formulation satisfies the Ladyzhenskaya–Babuška–Brezzi (inf-sup) condition. As a result, the problem is well-posed in both the velocity and pressure spaces, and the solution pair $(\vec{u}, p)$ is unique up to an additive constant in the pressure component.
 
-To consider the finite element approximation approximation of the Stokes problem let consider a mesh $\tau_h$ and a subset of the tests function spaces $V_h \subset V$ and $Q_h\subset Q$. We are essentially looking for $(u_h P_h) \in V_h \times Q_h$ such that the discrete weak formulation of the problem is satisfied:
+To consider the finite element approximation of the Stokes problem let us consider a mesh $\tau_h$ and subspaces of the test function space $V_h \subset V$ and $Q_h\subset Q$. We are essentially looking for $(u_h P_h) \in V_h \times Q_h$ such that the discrete weak formulation of the problem is satisfied:
 $$
 \begin{cases}
 a(\vec{u_h}, \vec{v_h}) - b(\vec{v_h}, P_h) = F(\vec{v_h}) & \forall \vec{v_h}\in V_h \\
@@ -143,7 +145,7 @@ where:
 
 Here, $\vec{\phi}_j$, with $j = 1, \dots, N_u$, are the test functions for the velocity space, and $\psi_l$, with $l = 1, \dots, N_p$, are the test functions for the pressure space. Once the system is assembled, solving it yields the discrete velocity and pressure fields.
 
-On the other hand, one may choose to use an unstable finite element pair, such as $P^1$ for both the pressure and velocity spaces. In this case, a stabilization mechanism must be introduced to obtain a meaningful and stable solution. A widely used stabilization technique is the Brezzi–Pitkäranta method, which consists of adding a pressure–pressure stabilization term to the system matrix. This term counteracts the lack of inf-sup stability by penalizing pressure oscillations. The resulting stabilized system reads:
+On the other hand, if one uses an unstable finite element pair, such as $P^1$ for both the pressure and velocity spaces. In this case, a stabilization mechanism must be introduced to obtain a meaningful and stable solution. A widely used stabilization technique is the Brezzi–Pitkäranta method, which consists of adding a pressure–pressure stabilization term to the system matrix. This term counteracts the lack of inf-sup stability by penalizing pressure oscillations. The resulting stabilized system reads:
 
 $$
 \begin{bmatrix}
@@ -169,43 +171,46 @@ with $\delta > 0$ a user-defined stabilization parameter, $h_K$ the diameter of 
 
 ## Navier Stokes
 
-Consider now the Navier-Stokes system
+The main difference between the weak formulation of the Navier–Stokes problem and that of the Stokes problem is the presence of the nonlinear convective term. To solve this problem, we employ Newton’s method, performing successive iterations to approximate the velocity and pressure fields.
 
-The main difference in this weak formulation compared to the one of Stokes problem is the presence of the non linearity term. In order to figure out a solution for this problem, we need to perform several Newton iterations to find a good approximation of the velocity and pressure fields. Specifically, in Navier Stokes, we want to apply Newton method on the function:
+In the Navier–Stokes case, we apply Newton’s method to the operator equation:
 $$
 \mathcal{G}(\vec{u},P) = \mathcal{L}(\vec{u}, P) - F = 0
 $$
 where 
 $$
 \mathcal{L}(\vec{u}, P) = \begin{bmatrix}
--\nu \Delta \vec{u} + \vec{u}\cdot\nabla\vec{u}-\Delta P \\ \text{div}(\vec{u}) \end{bmatrix} \,\, \text{and} \,\, F = \begin{bmatrix} \vec{f} \\ 0 \end{bmatrix}
+-\nu \Delta \vec{u} + \vec{u}\cdot\nabla\vec{u}+\nabla P \\ \text{div}(\vec{u}) \end{bmatrix} \,\, \text{and} \,\, F = \begin{bmatrix} \vec{f} \\ 0 \end{bmatrix}
 $$
-For newton, given $(\vec{u}_k, P_k)$, we need to find $(\delta \vec{u}_k, \delta P_k) \in V\times Q$ such that:
+
+For Newton’s method, given $(\vec{u}_k, P_k)$, we need to find $(\delta \vec{u}_k, \delta P_k) \in V\times Q$ such that:
 $$
 D \mathcal{G}_{\vec{u}_k, P_k} (\delta \vec{u}_k, \delta P_k) = -\mathcal{G}(\vec{u}_k, P_k)
 $$
-since $F$ is constant with respect to $\vec{u}_k, P_k$, we can write:
+
+Since $F$ is independent of $\vec{u}$ and $p$, this can be written as:
+
 $$
 D \mathcal{L}_{\vec{u}_k, P_k} (\delta \vec{u}_k, \delta P_k) =F-\mathcal{L}(\vec{u}_k, P_k)
 $$
 where
 $$
-D \mathcal{L}_{\vec{u}_k, P_k} (\delta \vec{u}_k, \delta P_k)  = \begin{bmatrix}-\nu\Delta \delta \vec{u} + \delta \vec{u} \cdot \nabla \vec{u}_k + \vec{u}_k \cdot \nabla \delta \vec{u} + \Delta \delta P \\ \text{div}(\delta \vec{u})\end{bmatrix}
+D \mathcal{L}_{\vec{u}_k, P_k} (\delta \vec{u}_k, \delta P_k)  = \begin{bmatrix}-\nu\Delta \delta \vec{u} + \delta \vec{u} \cdot \nabla \vec{u}_k + \vec{u}_k \cdot \nabla \delta \vec{u} + \nabla \delta P \\ \text{div}(\delta \vec{u})\end{bmatrix}
 $$
 then,
 $$
 \begin{cases}
--\nu\Delta \delta \vec{u} + \delta \vec{u} \cdot \nabla \vec{u}_k + \vec{u}_k \cdot \nabla \delta \vec{u} + \Delta \delta P = \vec{f} + \nu \Delta \vec{u}_k - \vec{u}_k \cdot \nabla \vec{u}_k - \nabla P_k \\ \text{div}(\delta \vec{u}) = \text{div}(\vec{u}_k)
+-\nu\Delta \delta \vec{u} + \delta \vec{u} \cdot \nabla \vec{u}_k + \vec{u}_k \cdot \nabla \delta \vec{u} + \nabla \delta P = \vec{f} + \nu \Delta \vec{u}_k - \vec{u}_k \cdot \nabla \vec{u}_k - \nabla P_k \\ \text{div}(\delta \vec{u}) = \text{div}(\vec{u}_k)
 \end{cases}
 $$
 Consider now:
 $$
 \begin{cases}
--(\nu\Delta \delta \vec{u} + \nu \Delta \vec{u}_k) + (\vec{u_k}\cdot \nabla \delta \vec{u} + \vec{u_k}\cdot \nabla\vec{u}_k) + (\delta \vec{u} \cdot \nabla \vec{u}_k +  \vec{u}_k\cdot \nabla\vec{u}_k) + (\Delta \delta P + \Delta P_k) = \vec{f} + \vec{u}_k\cdot \nabla\vec{u}_k \\
+-(\nu\Delta \delta \vec{u} + \nu \Delta \vec{u}_k) + (\vec{u_k}\cdot \nabla \delta \vec{u} + \vec{u_k}\cdot \nabla\vec{u}_k) + (\delta \vec{u} \cdot \nabla \vec{u}_k +  \vec{u}_k\cdot \nabla\vec{u}_k) + (\nabla \delta P + \nabla P_k) = \vec{f} + \vec{u}_k\cdot \nabla\vec{u}_k \\
 \text{div}(\delta \vec{u}) = - \text{div} (\vec{u}_k)
 \end{cases}
 $$
-Since $\vec{u}_{k+1} = \vec{u}_k + \delta \vec{u}$ and $P_{k+1} = P_k + \delta P$ we can write:
+Since $\vec{u}_{k+1} = \vec{u}k + \delta \vec{u}$ and $P_{k+1} = P_k + \delta p$, we can equivalently write:
 $$
 \begin{cases}
 -\nu \Delta \vec{u}_{k+1} + \vec{u}_k \cdot \nabla \vec{u}_{k+1} + \vec{u}_{k+1} \cdot \nabla \vec{u}_k + \nabla P_{k+1} = \vec{f} + \vec{u}_k\cdot \nabla\vec{u}_k \\
@@ -213,7 +218,7 @@ $$
 \end{cases}
 $$
 
-Similarly to what we did for stokes, let us derive the weak formulation of the problem. At each iteration of the Newton algorithm we must solve the following linear system:
+Similarly to what we did for the Stokes equations, let us derive the weak formulation of the problem. At each iteration of the Newton algorithm we must solve the following linear system:
 $$
 \begin{bmatrix}
 A+N(U_k)+M(U_k) & B^T \\ B & 0 
@@ -225,20 +230,20 @@ F + D{U_k} \\ 0
 $$
 where:
 $$
-M_{ij} = \int_\Omega (\vec{\phi}_j \cdot \nabla)\vec{w} \cdot \vec{\phi}_i + \frac{1}{2} \int_\Omega \text{div}(\vec{\phi}_j)\vec{w}\vec{\phi}_i
+M_{ij} = \int_\Omega (\vec{\phi}_j \cdot \nabla)\vec{w} \cdot \vec{\phi}_i + \frac{1}{2} \int_\Omega \text{div}(\vec{\phi}_j)\vec{w} \cdot \vec{\phi}_i
 $$
 $$
-N_{ij} = \int_\Omega (\vec{w}  \cdot \nabla) \vec{\phi}_j \cdot \vec{\phi}_i + \frac{1}{2} \int_\Omega \text{div}(\vec{w})\vec{\phi}_j\vec{\phi}_i
+N_{ij} = \int_\Omega (\vec{w}  \cdot \nabla) \vec{\phi}_j \cdot \vec{\phi}_i + \frac{1}{2} \int_\Omega \text{div}(\vec{w})\vec{\phi}_j \cdot \vec{\phi}_i
 $$
 $$
 D_i = \int_\Omega \vec{\phi}_i (\vec{w} \cdot \nabla \vec{w})
 $$
 
-Also in the case of Navier-Stokes the discrete Ladyzhenskaya–Babuška–Brezzi condition is satisfied for Taylor-Hood finite elements.
+As in the Stokes case, the discrete Ladyzhenskaya–Babuška–Brezzi condition is satisfied for Taylor–Hood finite elements.
 
 ## Schur complement 
 
-For the resolution of the linear system, both in the Stokes and Navier–Stokes problems, we adopt the Schur complement strategy.
+For the solution of the linear system, both in the Stokes and Navier–Stokes problems, we adopt a Schur complement strategy.
 
 Given a saddle-point system of the form:
 
@@ -258,13 +263,13 @@ G
 \end{bmatrix}
 $$
 
-we can eliminate the velocity unknown $begin:math:text$ U $end:math:text$ by solving the first block row:
+we can eliminate the velocity unknown $U$ by solving the first block row:
 
 $$
 A U + B^T P = F \quad \Rightarrow \quad U = A^{-1}(F - B^T P)
 $$
 
-Substituting this expression into the second block row leads to the Schur complement system:
+Substituting this expression into the second block row yields the Schur complement system:
 
 $$
 B A^{-1}(F - B^T P) + S P = G
@@ -284,16 +289,16 @@ $$
 \Sigma P = B A^{-1} F - G
 $$
 
-Once the pressure $ P$ has been computed, the velocity $U$ can be recovered via:
+Once the pressure $P$ has been computed, the velocity $U$ is recovered via:
 
 $$
 U = A^{-1}(F - B^T P)
 $$
 
 
-The difficulty with the Schur complement arises in the Navier–Stokes problem, particularly at moderate Reynolds numbers, where the matrix $A$ becomes strongly non-symmetric due to the convection term.
+In the Navier–Stokes problem, particularly at moderate Reynolds numbers, the matrix $A$ becomes strongly non-symmetric due to the convection term, which can significantly affect the robustness of the solver.
 
-To improve solver robustness, we adopt an Augmented Lagrangian formulation by adding a stabilization term to the velocity block as proposed in [@tuto_navierstokes]:
+To improve solver robustness, we adopt an Augmented Lagrangian formulation by adding a grad–div stabilization term to the velocity block as proposed in [@tuto_navierstokes]:
 
 $$
 \tilde{A} = A + \gamma B^T W^{-1} B
@@ -304,13 +309,13 @@ where:
 - $\gamma > 0$ is a stabilization parameter,
 - $W \approx M_p$ is the pressure mass matrix.
 
-We do not compute $\tilde{S}$ explicitly. Instead, we approximate its inverse by:
+We do not form $\tilde{S}$ explicitly. Instead, we approximate its inverse as:
 
 $$
 \tilde{S}^{-1} \approx -(\nu + \gamma) M_p^{-1}
 $$
 
-This is cheap and effective. Once the pressure is computed using this approximation, the velocity is recovered by:
+This approximation is both cheap and effective. Once the pressure is obtained using this preconditioned system, the velocity is recovered by:
 
 $$
 u = \tilde{A}^{-1}(f - B^T p)
@@ -318,17 +323,20 @@ $$
 
 # Problem statement
 
-The problem we aim to solve is a variant of the flow past a cylinder problem which involves two different cylinders. The domain we consider is a simple $2D$ rectangular domain with shape $5\times 1.5$. The cylinders have a radius of $0.1$ and their centers are placed at $(0.5, 1)$ and $(1.5,0.5)$. The following image represent the mesh:
+The problem under consideration is a variant of the flow past a cylinder benchmark, involving two distinct cylinders. The computational domain is a two-dimensional rectangular region of size $5 \times 1.5$. Each cylinder has radius $0.1$, with centers located at $(0.5, 1.0)$ and $(1.5,, 0.5)$.
+
+The mesh for this configuration is shown in Figure 1.
 
 ![Mesh](img/mesh.png){width=80%}
 
-We impose no-slip boundary condition on $\Gamma_{\text{top}}, \Gamma_{\text{bottom}} \text{ and } \Gamma_{\text{out}}$ and on the surface of the cylinders. The inlet velocity, imposed on on $\Gamma_{\text{in}}$, has the form:
-$$
-u_{in}(y) = \frac{4}{H^2} U_{\text{max}} (Hy - y^2)
-$$
-where $H$ is the height of the mesh. In our specific setting we set $U_\text{max} = 1.0$. 
+We impose no-slip boundary conditions on $\Gamma_{\text{top}}$, $\Gamma_{\text{bottom}}$, $\Gamma_{\text{out}}$, and on the surfaces of both cylinders.
+The inlet velocity, prescribed on $\Gamma_{\text{in}}$, is given by the parabolic profile
 
-Finally, in order to have a uniquely defined pressure, we imposed homogeneous Dirichlet boundary condition for pressure on $\Gamma_{\text{out}}$.
+$$
+u_{\text{in}}(y) = \frac{4}{H^2} , U_{\text{max}} , \big( H y - y^2 \big),
+$$
+
+where $H$ is the height of the domain and $U_{\text{max}}$ is the maximum inlet velocity. In our setup, we set $U_{\text{max}} = 1.0$. Finally, to ensure a unique pressure field, we impose a homogeneous Dirichlet condition on the pressure at $\Gamma_{\text{out}}$.
 
 # Implementation details
 
@@ -346,11 +354,12 @@ All simulations were carried out using the deal.II finite element library. The i
 
 Moreover, we employed an adaptive refinement strategy based on Kelly Estimator.
 
-The code used to run the test is available in the repository (https://github.com/FilippoOlivo/stokes). All the classes are implemented using Trilinos Wrappers available in deal.ii in order to make the code scalable to distributed environments.
+The code used to run the tests is available at https://github.com/FilippoOlivo/stokes.
+All classes are implemented using the Trilinos wrappers available in deal.II, ensuring that the code is scalable to distributed-memory environments.
 
 # Results 
 
-In this section we discuss the results of the simulations we have made on both Stokes and Navier-Stokes problem. Specifically, this chapter will be structured as follows:
+In this section we discuss the results of the simulations we have conducted on both the Stokes and Navier–Stokes problems. Specifically, this chapter will be structured as follows:
 
 #. Stokes simulation
 #. Navier-Stokes simulation
@@ -364,7 +373,7 @@ For the simple Stokes problem, we consider a scenario characterized by a low Rey
 
 As we can see, the velocity field shows a symmetric pattern along the vertical axis of each cylinder, which is typical of the Stokes regime. The maximum velocity occurs in the region between the two cylinders due to flow acceleration. Regarding the pressure field, we observe a significant pressure drop, near the end of the second cylinder.
 
-As mentioned in the previous section, we have also implemented a Stokes solver which employs a non-stable FEM pair $P^k$–$P^k$ together with Brezzi–Pitkäranta stabilization. Recalling the section on finite element discretization, the key parameter to define is the stabilization parameter $\delta$. 
+As mentioned in the previous section, we have also implemented a Stokes solver which employs a unstable FEM pair $P^k$–$P^k$ together with Brezzi–Pitkäranta stabilization. Recalling the section on finite element discretization, the key parameter to define is the stabilization parameter $\delta$. 
 
 We compare the behavior of the FEM solution for different values of $\delta$. Specifically, the renderings below show the simulation results for $\delta = 1.0$, $0.1$, and $0.01$.
 
@@ -380,7 +389,7 @@ In this section, we focus on the Navier–Stokes model and investigate the behav
 
 From the figure above, we can see that at low Reynolds numbers, the flow is steady and symmetric, with smooth velocity and high pressure. In particular, for $\text{Re} = 0.1$, the Navier–Stokes solution is almost the same as the Stokes one shown in Figure 3. As the Reynolds number increases, inertial effects become more important, leading to longer wakes and asymmetries in the flow. Moreover, while the maximum velocity stays almost the same, the pressure becomes much smaller. This shows a transition from a flow dominated by viscosity to one where inertia plays a bigger role.
 
-The following Figure shows the Line Integral Convolution (LIC) [@LIC] plot for the different simulation at the different Reynolds number. LIC is a tecnique, implemented in ParaView, commonly used to visualize vector fields such as fluid flow as in our case. 
+The following figure shows the Line Integral Convolution (LIC) [@LIC] plot for the different simulation at the different Reynolds number. LIC is a technique, implemented in ParaView, commonly used to visualize vector fields such as fluid flow as in our case. 
 
 ![Navier Stokes streamline at different Reynolds number](img/ns_vortex.png)
 
@@ -392,22 +401,40 @@ In this section we discuss the computational requirements and scalability of Sto
 
 As mentioned in the previous section, we implemented an adaptive mesh refinement strategy to obtain a more accurate solution. Naturally, each refinement step significantly increases the number of degrees of freedom, resulting in higher computational cost. Specifically, we perform five refinement cycles, where in each step we refine the top $30\%$ of cells with the highest estimated error (according to the Kelly error estimator) and coarsen the bottom $10\%$ of cells with the lowest estimated error. 
 
-To study the scalability of the code in a more detailed way we decided to split logically split in the following sections and compute the separate speedup for each of them:
+To analyze the code’s scalability in greater detail, we divided it into the following logical sections and computed the speedup of each individually:
 
 - **Initialize Schur complement**: initialization of the direct solver inside the Schur complement class which will compute the inverse of the pressure-pressure matrix.
-- **Assemble**: assembling of the system matrix and the right hand side. 
-- **Residual computation**: time taken to compute the residual at each Netwton iteration. 
+- **Assemble**: assembling of the system matrix and the right-hand side. 
+- **Residual computation**: time taken to compute the residual at each Newton iteration. 
 - **Solve**: time taken to solve the linear system.
 
 We focus on two types of scalability:
 
 - **Strong scalability**: For a fixed problem size, we measure how the computational time changes as the number of processors increases.
-- **Weak scalability**: For a fixed number of processors, we analyze how the computational time evolves as the problem size grows. In our case, the problem size is increased by adaptively refining the mesh, which increases the number of degrees of freedom.
 
-We consider the speed-up for solving a the Navier-Stokes problem with $300000$ degrees of freedom and $5$ Newton iterations (this is just for scalability testing purposed).
+In this section we consider only $5$ iterations of Newton method.
 
+### Strong scalability
 
-We consider the speed-up achieved when solving the Navier–Stokes problem with $300{,}000$ degrees of freedom and $15$ Newton iterations. The figure below shows the speed-up values for different components of the algorithm as the number of processors increases. Overall, we observe a modest speed-up, reaching a maximum value of around $10$ when using $32$ processors. As expected, the components that benefit the most from parallelization are the assembly and residual computation. These parts involve relatively little inter-processor communication and are also the most computationally intensive in the serial version of the program. In contrast, the solving phase and Schur complement initialization exhibit limited speed-up. This is likely due to the significant communication and memory overhead associated with these steps, which limits their scalability.
+We consider the speed-up achieved when solving the Navier–Stokes problem with $1312626$ degrees of freedom, the number of DoFs after $6$ refinement steps. The figure below shows the speed-up values for different components of the algorithm as the number of processors increases. 
+
+![Strong scalability](img/strong_scalability.png){width="60%"}
+
+Overall, we observe a modest speed-up, reaching a maximum value of around $10$ when using $32$ processors. As expected, the components that benefit the most from parallelization are the assembly and residual computation. These parts involve relatively small communication and are also the most computationally intensive in the serial version of the program. In contrast, the solving phase and Schur complement initialization exhibit limited speed-up. This is likely due to the significant communication and memory overhead associated with these steps, which limits their scalability.
+
+### Weak scalability
+
+Here, we analyze how the computational time of the different components of the model changes as the number of degrees of freedom increases. For this analysis, we fixed the number of processors to $8$. The plot below illustrates the weak scalability:
+
+![Weak scalability](img/weak_scalability.png){width="60%"}
+
+The figure above shows that the overall time increases almost linearly with problem size. Assembly, residual computation, and Schur initialization follow similar trends while the solver scales more efficiently, showing only a moderate increase in time. On the other hand, the initial guess computation grows the fastest and becomes the dominant bottleneck for the largest problems.
+
+# Conclusion
+
+In this project, we presented an efficient deal.II implementation of a solver for both Stokes and Navier–Stokes problems. We achieved good scalability and overall performance in the assembly phase, while the scalability of other components could still be improved.
+
+As future steps, in addition to performance improvements, we plan to implement an unsteady Navier–Stokes solver based on FEM, which will enable simulations at higher Reynolds numbers.
 
 # References 
 
