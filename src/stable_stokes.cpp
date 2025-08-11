@@ -26,11 +26,11 @@ template <int dim>
 void
 StableStokes<dim>::build_local_matrix(
     std::vector<SymmetricTensor<2, dim>> &symgrad_phi_u,
-    std::vector<double>                  &div_phi_u,
-    std::vector<double>                  &phi_p,
+    std::vector<double> &                 div_phi_u,
+    std::vector<double> &                 phi_p,
     double                                JxW,
     const unsigned int                    dofs_per_cell,
-    FullMatrix<double>                   &local_matrix)
+    FullMatrix<double> &                  local_matrix)
 {
     for (unsigned int i = 0; i < dofs_per_cell; ++i)
         for (unsigned int j = 0; j <= i; ++j)

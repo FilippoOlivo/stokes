@@ -89,12 +89,12 @@ NavierStokes<dim>::setup_system()
 
 template <int dim>
 void
-NavierStokes<dim>::build_local_matrix(std::vector<double>         &div_phi_u,
+NavierStokes<dim>::build_local_matrix(std::vector<double> &        div_phi_u,
                                       std::vector<Tensor<2, dim>> &grad_phi_u,
-                                      std::vector<double>         &phi_p,
+                                      std::vector<double> &        phi_p,
                                       std::vector<Tensor<1, dim>> &phi_u,
-                                      Tensor<1, dim>     &velocity_values,
-                                      Tensor<2, dim>     &velocity_gradients,
+                                      Tensor<1, dim> &    velocity_values,
+                                      Tensor<2, dim> &    velocity_gradients,
                                       double              JxW,
                                       const unsigned int  dofs_per_cell,
                                       FullMatrix<double> &local_matrix)
@@ -121,15 +121,15 @@ NavierStokes<dim>::build_local_matrix(std::vector<double>         &div_phi_u,
 template <int dim>
 void
 NavierStokes<dim>::compute_local_residual(
-    std::vector<double>         &div_phi_u,
+    std::vector<double> &        div_phi_u,
     std::vector<Tensor<2, dim>> &grad_phi_u,
     std::vector<Tensor<1, dim>> &phi_u,
-    Tensor<1, dim>              &velocity_values,
-    Tensor<2, dim>              &velocity_gradients,
+    Tensor<1, dim> &             velocity_values,
+    Tensor<2, dim> &             velocity_gradients,
     double                       pressure_value,
     double                       JxW,
     const unsigned int           dofs_per_cell,
-    Vector<double>              &local_rhs)
+    Vector<double> &             local_rhs)
 {
     for (unsigned int i = 0; i < dofs_per_cell; ++i)
         {
@@ -238,11 +238,11 @@ template <int dim>
 void
 NavierStokes<dim>::build_local_matrix_initial_guess(
     std::vector<Tensor<2, dim>> &grad_phi_u,
-    std::vector<double>         &div_phi_u,
-    std::vector<double>         &phi_p,
+    std::vector<double> &        div_phi_u,
+    std::vector<double> &        phi_p,
     double                       JxW,
     const unsigned int           dofs_per_cell,
-    FullMatrix<double>          &local_matrix)
+    FullMatrix<double> &         local_matrix)
 {
     for (unsigned int i = 0; i < dofs_per_cell; ++i)
         for (unsigned int j = 0; j <= i; ++j)
@@ -398,7 +398,7 @@ NavierStokes<dim>::compute_initial_guess(
     this->computing_timer.enter_subsection("assemble initial guess");
     assemble(true);
     this->computing_timer.leave_subsection();
-
+    // this->pcout << "Assembled initial guess." << std::endl;
     this->computing_timer.enter_subsection("init initial guess solver");
     SolverControl solver_control(this->system_matrix.m(), 1e-12, true);
     SolverFGMRES<TrilinosWrappers::MPI::BlockVector> gmres(solver_control);
@@ -417,6 +417,7 @@ NavierStokes<dim>::compute_initial_guess(
                        0.0,
                        false);
     this->computing_timer.leave_subsection();
+    // this->pcout << "Initialized initial guess solver." << std::endl;
     this->computing_timer.enter_subsection("solve initial guess");
     gmres.solve(this->system_matrix,
                 solution,
@@ -424,6 +425,9 @@ NavierStokes<dim>::compute_initial_guess(
                 preconditioner);
     this->constraints.distribute(solution);
     this->computing_timer.leave_subsection();
+    this->pcout << "Initial guess computed: " << std::endl
+                << "\tFGMRES iterations = " << solver_control.last_step()
+                << std::endl;
 }
 
 template <int dim>
@@ -441,12 +445,10 @@ NavierStokes<dim>::newton_iteration(const double       tolerance,
                         this->mpi_communicator);
     TrilinosWrappers::MPI::BlockVector initial_guess;
     initial_guess.reinit(this->owned_partitioning, this->mpi_communicator);
-
+    // this->pcout << "Starting Newton iteration." << std::endl;
     compute_initial_guess(initial_guess);
-
     old_solution = initial_guess;
-    this->pcout << "\tInitial guess computed." << std::endl;
-    n_it = 0;
+    n_it         = 0;
     while (past_residual > tolerance && line_search_n < max_iterations)
         {
             this->computing_timer.enter_subsection("assemble");
@@ -484,6 +486,7 @@ void
 NavierStokes<dim>::run()
 {
     this->load_grid();
+    this->pcout << "Loaded grid." << std::endl;
     for (unsigned int cycle = 0; cycle < this->params.refinement_steps; ++cycle)
         {
             if (cycle > 0)

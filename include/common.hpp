@@ -53,7 +53,7 @@ class CommonCFD
 
 
   protected:
-    const Parameters                         &params;
+    const Parameters &                        params;
     MPI_Comm                                  mpi_communicator;
     unsigned int                              mpi_size;
     unsigned int                              mpi_rank;
@@ -125,6 +125,8 @@ CommonCFD<dim>::setup_dofhandler()
     dof_handler.distribute_dofs(fe);
     pcout << "Number of degrees of freedom: " << dof_handler.n_dofs()
           << std::endl;
+    dof_handler.distribute_dofs(fe);
+    DoFRenumbering::Cuthill_McKee(dof_handler);
 
     std::vector<unsigned int> block_component(dim + 1, 0);
     block_component[dim] = 1;

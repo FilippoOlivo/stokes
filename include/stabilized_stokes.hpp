@@ -16,12 +16,12 @@ class StabilizedStokes : public BaseStokes<dim>
 
     void
     build_local_matrix(std::vector<SymmetricTensor<2, dim>> &symgrad_phi_u,
-                       std::vector<double>                  &div_phi_u,
-                       std::vector<Tensor<1, dim>>          &grad_phi_p,
-                       std::vector<double>                  &phi_p,
+                       std::vector<double> &                 div_phi_u,
+                       std::vector<Tensor<1, dim>> &         grad_phi_p,
+                       std::vector<double> &                 phi_p,
                        double                                JxW,
                        const unsigned int                    dofs_per_cell,
-                       FullMatrix<double>                   &local_matrix,
+                       FullMatrix<double> &                  local_matrix,
                        double                                h_k_squared);
     void
     assemble_system() override;

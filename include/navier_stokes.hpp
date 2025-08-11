@@ -35,29 +35,29 @@ class NavierStokes : public CommonCFD<dim>
     setup_system();
 
     void
-    build_local_matrix(std::vector<double>         &div_phi_u,
+    build_local_matrix(std::vector<double> &        div_phi_u,
                        std::vector<Tensor<2, dim>> &grad_phi_u,
-                       std::vector<double>         &phi_p,
+                       std::vector<double> &        phi_p,
                        std::vector<Tensor<1, dim>> &phi_u,
-                       Tensor<1, dim>              &velocity_values,
-                       Tensor<2, dim>              &velocity_gradients,
+                       Tensor<1, dim> &             velocity_values,
+                       Tensor<2, dim> &             velocity_gradients,
                        double                       JxW,
                        const unsigned int           dofs_per_cell,
-                       FullMatrix<double>          &local_matrix);
+                       FullMatrix<double> &         local_matrix);
 
     double
     compute_residual();
 
     void
-    compute_local_residual(std::vector<double>         &div_phi_u,
+    compute_local_residual(std::vector<double> &        div_phi_u,
                            std::vector<Tensor<2, dim>> &grad_phi_u,
                            std::vector<Tensor<1, dim>> &phi_u,
-                           Tensor<1, dim>              &velocity_values,
-                           Tensor<2, dim>              &velocity_gradients,
+                           Tensor<1, dim> &             velocity_values,
+                           Tensor<2, dim> &             velocity_gradients,
                            double                       pressure_value,
                            double                       JxW,
                            const unsigned int           dofs_per_cell,
-                           Vector<double>              &local_rhs);
+                           Vector<double> &             local_rhs);
 
     void
     assemble(bool initial_guess);
@@ -72,9 +72,9 @@ class NavierStokes : public CommonCFD<dim>
     compute_initial_guess(TrilinosWrappers::MPI::BlockVector &solution);
     void
     build_local_matrix_initial_guess(std::vector<Tensor<2, dim>> &grad_phi_u,
-                                     std::vector<double>         &div_phi_u,
-                                     std::vector<double>         &phi_p,
+                                     std::vector<double> &        div_phi_u,
+                                     std::vector<double> &        phi_p,
                                      double                       JxW,
                                      const unsigned int           dofs_per_cell,
-                                     FullMatrix<double>          &local_matrix);
+                                     FullMatrix<double> &         local_matrix);
 };

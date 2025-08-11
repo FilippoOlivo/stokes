@@ -19,25 +19,25 @@ class BlockSchurPreconditioner : public Subscriptor
   public:
     BlockSchurPreconditioner(double viscosity,
                              const TrilinosWrappers::BlockSparseMatrix &S,
-                             const TrilinosWrappers::SparseMatrix      &P,
-                             const PreconditionerMp      &Mppreconditioner,
-                             const MPI_Comm              &mpi_communicator,
+                             const TrilinosWrappers::SparseMatrix &     P,
+                             const PreconditionerMp &     Mppreconditioner,
+                             const MPI_Comm &             mpi_communicator,
                              const std::vector<IndexSet> &owned_partitioning,
                              double                       gamma = 0.0,
                              bool use_direct_solver             = false);
 
     void
-    vmult(TrilinosWrappers::MPI::BlockVector       &dst,
+    vmult(TrilinosWrappers::MPI::BlockVector &      dst,
           const TrilinosWrappers::MPI::BlockVector &src) const;
 
   private:
     const double                               gamma;
     const double                               viscosity;
     const TrilinosWrappers::BlockSparseMatrix &stokes_matrix;
-    const TrilinosWrappers::SparseMatrix      &pressure_mass_matrix;
-    const PreconditionerMp                    &mp_preconditioner;
-    const MPI_Comm                            &mpi_communicator;
-    const std::vector<IndexSet>               &owned_partitioning;
+    const TrilinosWrappers::SparseMatrix &     pressure_mass_matrix;
+    const PreconditionerMp &                   mp_preconditioner;
+    const MPI_Comm &                           mpi_communicator;
+    const std::vector<IndexSet> &              owned_partitioning;
 
     InverseMatrix<TrilinosWrappers::SparseMatrix> A_inverse;
 };
@@ -46,10 +46,10 @@ template <class PreconditionerMp>
 BlockSchurPreconditioner<PreconditionerMp>::BlockSchurPreconditioner(
     double                                     viscosity,
     const TrilinosWrappers::BlockSparseMatrix &S,
-    const TrilinosWrappers::SparseMatrix      &P,
-    const PreconditionerMp                    &Mppreconditioner,
-    const MPI_Comm                            &mpi_communicator,
-    const std::vector<IndexSet>               &owned_partitioning,
+    const TrilinosWrappers::SparseMatrix &     P,
+    const PreconditionerMp &                   Mppreconditioner,
+    const MPI_Comm &                           mpi_communicator,
+    const std::vector<IndexSet> &              owned_partitioning,
     double                                     gamma,
     bool                                       use_direct_solver)
     : gamma(gamma)
@@ -65,7 +65,7 @@ BlockSchurPreconditioner<PreconditionerMp>::BlockSchurPreconditioner(
 template <class PreconditionerMp>
 void
 BlockSchurPreconditioner<PreconditionerMp>::vmult(
-    TrilinosWrappers::MPI::BlockVector       &dst,
+    TrilinosWrappers::MPI::BlockVector &      dst,
     const TrilinosWrappers::MPI::BlockVector &src) const
 {
     TrilinosWrappers::MPI::Vector utmp(owned_partitioning[0], mpi_communicator);

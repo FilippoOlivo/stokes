@@ -17,7 +17,7 @@ class InverseMatrix : public Subscriptor
     InverseMatrix(const MatrixType &m, bool use_direct_solver = false);
 
     void
-    vmult(TrilinosWrappers::MPI::Vector       &dst,
+    vmult(TrilinosWrappers::MPI::Vector &      dst,
           const TrilinosWrappers::MPI::Vector &src) const;
 
   private:
@@ -57,7 +57,7 @@ InverseMatrix<MatrixType>::InverseMatrix(const MatrixType &m,
 
 template <class MatrixType>
 void
-InverseMatrix<MatrixType>::vmult(TrilinosWrappers::MPI::Vector       &dst,
+InverseMatrix<MatrixType>::vmult(TrilinosWrappers::MPI::Vector &      dst,
                                  const TrilinosWrappers::MPI::Vector &src) const
 {
     if (use_direct_solver)
