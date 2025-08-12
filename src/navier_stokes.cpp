@@ -64,7 +64,7 @@ NavierStokes<dim>::setup_system_matrix()
                                                this->mpi_communicator,
                                                this->locally_relevant_dofs);
     this->sparsity_pattern.copy_from(dsp);
-    this->system_matrix.reinit(this->owned_partitioning,
+    this->system_matrix.reinit<BlockSparsityPattern>(this->owned_partitioning,
                                this->sparsity_pattern,
                                this->mpi_communicator);
 }
@@ -158,7 +158,7 @@ template <int dim>
 double
 NavierStokes<dim>::compute_residual()
 {
-    TrilinosWrappers::MPI::BlockVector residual;
+    LinearAlgebra::TpetraWrappers::BlockVector<double> residual;
     residual.reinit(this->owned_partitioning, this->mpi_communicator);
     residual = 0;
     // Initialize quadrature formula and FEValues object
@@ -291,7 +291,7 @@ NavierStokes<dim>::assemble(bool initial_guess)
 
     std::vector<Tensor<1, dim>> velocity_values(n_q_points);
     std::vector<Tensor<2, dim>> velocity_gradients(n_q_points);
-
+    this->pcout << "Assembling system matrix and RHS." << std::endl;
     for (const auto &cell : this->dof_handler.active_cell_iterators())
         {
             if (cell->is_locally_owned() == false)
@@ -343,36 +343,41 @@ NavierStokes<dim>::assemble(bool initial_guess)
                                             fe_values.JxW(q);
                 }
             cell->get_dof_indices(local_dof_indices);
-
+            std::cout << "Distributing local contributions for cell "
+                      << cell->index() << std::endl;
             this->constraints.distribute_local_to_global(local_matrix,
-                                                         local_rhs,
+                                                        //  local_rhs,x
                                                          local_dof_indices,
-                                                         system_matrix,
-                                                         this->system_rhs);
+                                                         system_matrix);
+                                                        //  this->system_rhs);
+            this->constraints.distribute_local_to_global(
+                local_rhs, local_dof_indices, this->system_rhs);
         }
+    
     system_matrix.compress(VectorOperation::add);
     this->system_rhs.compress(VectorOperation::add);
     pressure_mass_matrix.reinit(sparsity_pattern.block(1, 1));
     pressure_mass_matrix.copy_from(system_matrix.block(1, 1));
     system_matrix.block(1, 1) = 0;
+    this->pcout << "Assembled system matrix and RHS." << std::endl;
 }
 
 template <int dim>
 unsigned int
-NavierStokes<dim>::solve(TrilinosWrappers::MPI::BlockVector &solution)
+NavierStokes<dim>::solve(LinearAlgebra::TpetraWrappers::BlockVector<double> &solution)
 {
     this->computing_timer.enter_subsection("initialize solver");
     SolverControl solver_control(system_matrix.m(), 1e-12, true);
 
-    SolverFGMRES<TrilinosWrappers::MPI::BlockVector> gmres(solver_control);
-    TrilinosWrappers::PreconditionAMG                pmass_preconditioner;
+    SolverFGMRES<LinearAlgebra::TpetraWrappers::BlockVector<double>> gmres(solver_control);
+    LinearAlgebra::TpetraWrappers::PreconditionILU<double>                pmass_preconditioner;
     pmass_preconditioner.initialize(
         pressure_mass_matrix,
-        TrilinosWrappers::PreconditionAMG::AdditionalData());
+        LinearAlgebra::TpetraWrappers::PreconditionILU<double>::AdditionalData());
     this->computing_timer.leave_subsection();
 
     this->computing_timer.enter_subsection("initialize Schur preconditioner");
-    const BlockSchurPreconditioner<TrilinosWrappers::PreconditionAMG>
+    const BlockSchurPreconditioner<LinearAlgebra::TpetraWrappers::PreconditionILU<double>>
         preconditioner(this->params.viscosity,
                        system_matrix,
                        pressure_mass_matrix,
@@ -393,21 +398,21 @@ NavierStokes<dim>::solve(TrilinosWrappers::MPI::BlockVector &solution)
 template <int dim>
 void
 NavierStokes<dim>::compute_initial_guess(
-    TrilinosWrappers::MPI::BlockVector &solution)
+    LinearAlgebra::TpetraWrappers::BlockVector<double> &solution)
 {
     this->computing_timer.enter_subsection("assemble initial guess");
     assemble(true);
     this->computing_timer.leave_subsection();
-    // this->pcout << "Assembled initial guess." << std::endl;
+    this->pcout << "Assembled initial guess." << std::endl;
     this->computing_timer.enter_subsection("init initial guess solver");
     SolverControl solver_control(this->system_matrix.m(), 1e-12, true);
-    SolverFGMRES<TrilinosWrappers::MPI::BlockVector> gmres(solver_control);
-    TrilinosWrappers::PreconditionAMG                pmass_preconditioner;
+    SolverFGMRES<LinearAlgebra::TpetraWrappers::BlockVector<double>> gmres(solver_control);
+    LinearAlgebra::TpetraWrappers::PreconditionILU<double>                pmass_preconditioner;
     pmass_preconditioner.initialize(
         pressure_mass_matrix,
-        TrilinosWrappers::PreconditionAMG::AdditionalData());
+        LinearAlgebra::TpetraWrappers::PreconditionILU<double>::AdditionalData());
 
-    const BlockSchurPreconditioner<TrilinosWrappers::PreconditionAMG>
+    const BlockSchurPreconditioner<LinearAlgebra::TpetraWrappers::PreconditionILU<double>>
         preconditioner(this->params.viscosity,
                        this->system_matrix,
                        pressure_mass_matrix,
@@ -438,14 +443,14 @@ NavierStokes<dim>::newton_iteration(const double       tolerance,
     unsigned int                       line_search_n    = 0;
     double                             current_residual = 0.0;
     double                             past_residual    = 1.0;
-    TrilinosWrappers::MPI::BlockVector solution;
+    LinearAlgebra::TpetraWrappers::BlockVector<double> solution;
     solution.reinit(this->owned_partitioning, this->mpi_communicator);
     old_solution.reinit(this->owned_partitioning,
                         this->relevant_partitioning,
                         this->mpi_communicator);
-    TrilinosWrappers::MPI::BlockVector initial_guess;
+    LinearAlgebra::TpetraWrappers::BlockVector<double> initial_guess;
     initial_guess.reinit(this->owned_partitioning, this->mpi_communicator);
-    // this->pcout << "Starting Newton iteration." << std::endl;
+    this->pcout << "Starting Newton iteration." << std::endl;
     compute_initial_guess(initial_guess);
     old_solution = initial_guess;
     n_it         = 0;

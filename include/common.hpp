@@ -20,14 +20,17 @@
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_in.h>
 #include <deal.II/grid/grid_out.h>
-#include <deal.II/grid/grid_tools.h>
+#include <deal.II/lac/sparsity_tools.h>
 
-#include <deal.II/lac/affine_constraints.h>
-#include <deal.II/lac/full_matrix.h>
-#include <deal.II/lac/trilinos_block_sparse_matrix.h>
-#include <deal.II/lac/trilinos_parallel_block_vector.h>
-#include <deal.II/lac/trilinos_precondition.h>
-#include <deal.II/lac/trilinos_vector.h>
+#include <deal.II/lac/affine_constraints.templates.h>
+
+#include <deal.II/lac/trilinos_tpetra_block_vector.h>
+#include <deal.II/lac/trilinos_tpetra_vector.h>
+#include <deal.II/lac/trilinos_tpetra_sparse_matrix.templates.h>
+#include <deal.II/lac/trilinos_tpetra_block_sparse_matrix.templates.h>
+
+#include <deal.II/lac/sparsity_pattern.h>
+#include <deal.II/lac/block_sparsity_pattern.h>
 
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/error_estimator.h>
@@ -48,7 +51,7 @@ class CommonCFD
     CommonCFD(const Parameters &params, std::string output_base_name);
     virtual void
     run() = 0;
-    BlockVector<double>
+    LinearAlgebra::TpetraWrappers::BlockVector<double>
     get_solution();
 
 
@@ -71,15 +74,14 @@ class CommonCFD
     std::vector<types::global_dof_index> dofs_per_block;
     AffineConstraints<double>            constraints;
     BlockSparsityPattern                 sparsity_pattern;
-    TrilinosWrappers::MPI::BlockVector   relevant_solution;
-    TrilinosWrappers::MPI::BlockVector   system_rhs;
-    TrilinosWrappers::BlockSparseMatrix  system_matrix;
+    LinearAlgebra::TpetraWrappers::BlockVector<double>   relevant_solution;
+    LinearAlgebra::TpetraWrappers::BlockVector<double>   system_rhs;
+    LinearAlgebra::TpetraWrappers::BlockSparseMatrix<double>  system_matrix;
 
     IndexSet              locally_owned_dofs;
     IndexSet              locally_relevant_dofs;
     std::vector<IndexSet> owned_partitioning;
     std::vector<IndexSet> relevant_partitioning;
-
 
     void
     setup_dofhandler();
@@ -146,6 +148,8 @@ CommonCFD<dim>::setup_dofhandler()
         DoFTools::extract_locally_relevant_dofs(dof_handler);
     relevant_partitioning = {locally_relevant_dofs.get_view(0, n_u),
                              locally_relevant_dofs.get_view(n_u, n_u + n_p)};
+    std::cout << "Locally owned degrees of freedom: "
+          << locally_owned_dofs.n_elements() << std::endl;
 }
 
 template <int dim>
@@ -210,7 +214,7 @@ CommonCFD<dim>::refine_grid()
 }
 
 template <int dim>
-BlockVector<double>
+LinearAlgebra::TpetraWrappers::BlockVector<double>
 CommonCFD<dim>::get_solution()
 {
     return relevant_solution;

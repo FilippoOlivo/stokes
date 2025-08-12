@@ -12,8 +12,8 @@ find_package(deal.II 9.6.2 REQUIRED HINTS ${DEAL_II_DIR})
 
 set(TARGET_SRC
     src/main.cpp
-    src/stable_stokes.cpp
-    src/stabilized_stokes.cpp
+    # src/stable_stokes.cpp
+    # src/stabilized_stokes.cpp
     src/navier_stokes.cpp
     src/boundary.cpp
 )

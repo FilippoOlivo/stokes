@@ -19,11 +19,11 @@ class NavierStokes : public CommonCFD<dim>
     BlockSparsityPattern sparsity_pattern;
     SparsityPattern      pressure_sparsity_pattern;
 
-    TrilinosWrappers::MPI::BlockVector old_solution;
-    TrilinosWrappers::MPI::BlockVector newton_update;
+    LinearAlgebra::TpetraWrappers::BlockVector<double> old_solution;
+    LinearAlgebra::TpetraWrappers::BlockVector<double> newton_update;
 
-    TrilinosWrappers::BlockSparseMatrix system_matrix;
-    TrilinosWrappers::SparseMatrix      pressure_mass_matrix;
+    LinearAlgebra::TpetraWrappers::BlockSparseMatrix<double> system_matrix;
+    LinearAlgebra::TpetraWrappers::SparseMatrix<double>      pressure_mass_matrix;
     double                              gamma = 100.0;
     unsigned int                        n_it;
 
@@ -63,13 +63,13 @@ class NavierStokes : public CommonCFD<dim>
     assemble(bool initial_guess);
 
     unsigned int
-    solve(TrilinosWrappers::MPI::BlockVector &solution);
+    solve(LinearAlgebra::TpetraWrappers::BlockVector<double> &solution);
 
     void
     newton_iteration(const double tolerance, const unsigned int max_iterations);
 
     void
-    compute_initial_guess(TrilinosWrappers::MPI::BlockVector &solution);
+    compute_initial_guess(LinearAlgebra::TpetraWrappers::BlockVector<double> &solution);
     void
     build_local_matrix_initial_guess(std::vector<Tensor<2, dim>> &grad_phi_u,
                                      std::vector<double> &        div_phi_u,

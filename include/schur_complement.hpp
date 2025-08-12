@@ -3,9 +3,10 @@
 
 #include <deal.II/base/smartpointer.h>
 
-#include <deal.II/lac/block_sparse_matrix.h>
-#include <deal.II/lac/sparse_matrix.h>
-#include <deal.II/lac/trilinos_vector.h>
+#include <deal.II/lac/trilinos_tpetra_block_sparse_matrix.h>
+#include <deal.II/lac/trilinos_tpetra_block_vector.h>
+#include <deal.II/lac/trilinos_tpetra_vector.h>
+#include <deal.II/lac/trilinos_tpetra_precondition.h>
 
 #include <deal.II/numerics/vector_tools.h>
 
@@ -18,8 +19,8 @@ class BlockSchurPreconditioner : public Subscriptor
 {
   public:
     BlockSchurPreconditioner(double viscosity,
-                             const TrilinosWrappers::BlockSparseMatrix &S,
-                             const TrilinosWrappers::SparseMatrix &     P,
+                             const LinearAlgebra::TpetraWrappers::BlockSparseMatrix<double> &S,
+                             const LinearAlgebra::TpetraWrappers::SparseMatrix<double> &P,
                              const PreconditionerMp &     Mppreconditioner,
                              const MPI_Comm &             mpi_communicator,
                              const std::vector<IndexSet> &owned_partitioning,
@@ -27,26 +28,26 @@ class BlockSchurPreconditioner : public Subscriptor
                              bool use_direct_solver             = false);
 
     void
-    vmult(TrilinosWrappers::MPI::BlockVector &      dst,
-          const TrilinosWrappers::MPI::BlockVector &src) const;
+    vmult(LinearAlgebra::TpetraWrappers::BlockVector<double> &      dst,
+          const LinearAlgebra::TpetraWrappers::BlockVector<double> &src) const;
 
   private:
     const double                               gamma;
     const double                               viscosity;
-    const TrilinosWrappers::BlockSparseMatrix &stokes_matrix;
-    const TrilinosWrappers::SparseMatrix &     pressure_mass_matrix;
+    const LinearAlgebra::TpetraWrappers::BlockSparseMatrix<double> &stokes_matrix;
+    const LinearAlgebra::TpetraWrappers::SparseMatrix<double> &     pressure_mass_matrix;
     const PreconditionerMp &                   mp_preconditioner;
     const MPI_Comm &                           mpi_communicator;
     const std::vector<IndexSet> &              owned_partitioning;
 
-    InverseMatrix<TrilinosWrappers::SparseMatrix> A_inverse;
+    InverseMatrix<LinearAlgebra::TpetraWrappers::SparseMatrix<double>> A_inverse;
 };
 
 template <class PreconditionerMp>
 BlockSchurPreconditioner<PreconditionerMp>::BlockSchurPreconditioner(
     double                                     viscosity,
-    const TrilinosWrappers::BlockSparseMatrix &S,
-    const TrilinosWrappers::SparseMatrix &     P,
+    const LinearAlgebra::TpetraWrappers::BlockSparseMatrix<double> &S,
+    const LinearAlgebra::TpetraWrappers::SparseMatrix<double> &     P,
     const PreconditionerMp &                   Mppreconditioner,
     const MPI_Comm &                           mpi_communicator,
     const std::vector<IndexSet> &              owned_partitioning,
@@ -65,13 +66,13 @@ BlockSchurPreconditioner<PreconditionerMp>::BlockSchurPreconditioner(
 template <class PreconditionerMp>
 void
 BlockSchurPreconditioner<PreconditionerMp>::vmult(
-    TrilinosWrappers::MPI::BlockVector &      dst,
-    const TrilinosWrappers::MPI::BlockVector &src) const
+    LinearAlgebra::TpetraWrappers::BlockVector<double> &      dst,
+    const LinearAlgebra::TpetraWrappers::BlockVector<double> &src) const
 {
-    TrilinosWrappers::MPI::Vector utmp(owned_partitioning[0], mpi_communicator);
+    LinearAlgebra::TpetraWrappers::Vector<double> utmp(owned_partitioning[0], mpi_communicator);
 
     SolverControl solver_control(1000, 1e-6 * src.block(1).l2_norm());
-    SolverCG<TrilinosWrappers::MPI::Vector> cg(solver_control);
+    SolverCG<LinearAlgebra::TpetraWrappers::Vector<double>> cg(solver_control);
 
     dst.block(1) = 0.0;
     cg.solve(pressure_mass_matrix,
@@ -85,7 +86,7 @@ BlockSchurPreconditioner<PreconditionerMp>::vmult(
     utmp += src.block(0);
 
     A_inverse.vmult(dst.block(0), utmp);
-    TrilinosWrappers::MPI::Vector tmp_mass(owned_partitioning[1],
+    LinearAlgebra::TpetraWrappers::Vector<double> tmp_mass(owned_partitioning[1],
                                            mpi_communicator);
     stokes_matrix.block(1, 1).vmult(tmp_mass, src.block(1));
     dst.block(1) += tmp_mass;
